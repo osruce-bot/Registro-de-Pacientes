@@ -1,0 +1,190 @@
+{
+  "entities": {
+    "paciente": {
+      "title": "Paciente",
+      "description": "Registro completo de información médica de un paciente",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único del paciente" },
+        "nombre": { "type": "string", "description": "Nombre del paciente" },
+        "apellido": { "type": "string", "description": "Apellido del paciente" },
+        "pjsId": { "type": "string", "description": "ID del PJS asociado" },
+        "pjsLabel": { "type": "string", "description": "Nombre del miembro/entidad PJS" },
+        "ciudadId": { "type": "string", "description": "ID de la ciudad de la actividad" },
+        "ciudadLabel": { "type": "string", "description": "Nombre de la ciudad" },
+        "medicoId": { "type": "string", "description": "ID del médico" },
+        "medicoLabel": { "type": "string", "description": "Nombre y apellido del médico" },
+        "aseguradoraId": { "type": "string", "description": "ID de la aseguradora" },
+        "aseguradoraLabel": { "type": "string", "description": "Nombre de la aseguradora" },
+        "sector": { "type": "string", "enum": ["Público", "Privado"], "description": "Sector: Público o Privado" },
+        "institucionId": { "type": "string", "description": "ID de la institución" },
+        "institucionLabel": { "type": "string", "description": "Nombre de la institución" },
+        "dispensacionId": { "type": "string", "description": "ID de la dispensación" },
+        "dispensacionLabel": { "type": "string", "description": "Nombre de la dispensación" },
+        "distribuidorId": { "type": "string", "description": "ID del distribuidor" },
+        "distribuidorLabel": { "type": "string", "description": "Nombre del distribuidor" },
+        "indicacionId": { "type": "string", "description": "ID de la indicación" },
+        "indicacionLabel": { "type": "string", "description": "Nombre de la indicación" },
+        "dosisId": { "type": "string", "description": "ID de la dosis" },
+        "dosisLabel": { "type": "string", "description": "Nombre o valor de la dosis" },
+        "notesEncrypted": { "type": "string", "description": "Notas adicionales sensibles, encriptadas con clave clínica" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Fecha de creación del registro" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Fecha de actualización de la información" },
+        "status": { "type": "string", "enum": ["active", "inactive"], "description": "Estado activo o inactivo del registro" }
+      },
+      "required": ["id", "nombre", "apellido"]
+    },
+    "lookup_pjs": {
+      "title": "PJS",
+      "description": "Entidad Persona Jurídica para registrar nuevos miembros y dar de baja",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string", "description": "Nombre" },
+        "apellido": { "type": "string", "description": "Apellido" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre", "apellido"]
+    },
+    "lookup_ciudad": {
+      "title": "Ciudades del Perú",
+      "description": "Ciudad donde se realiza la actividad",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string", "description": "Nombre de la ciudad" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    },
+    "lookup_medico": {
+      "title": "Médico",
+      "description": "Médico tratante, con opción a registrar y dar de baja",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "apellido": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre", "apellido"]
+    },
+    "lookup_aseguradora": {
+      "title": "Aseguradora",
+      "description": "Entidad de seguros médicos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    },
+    "lookup_institucion": {
+      "title": "Institución",
+      "description": "Establecimiento de salud u organización",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    },
+    "lookup_dispensacion": {
+      "title": "Dispensación",
+      "description": "Registro de dispensación de medicamentos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    },
+    "lookup_distribuidor": {
+      "title": "Distribuidor",
+      "description": "Distribuidor de insumos o fármacos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    },
+    "lookup_indicacion": {
+      "title": "Indicación",
+      "description": "Indicación terapéutica o médica",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    },
+    "lookup_dosis": {
+      "title": "Dosis",
+      "description": "Dosis prescritas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombre": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "baja"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre"]
+    }
+  },
+  "firestore": {
+    "/pacientes/{pacienteId}": {
+      "schema": "paciente",
+      "description": "Información médica unificada por paciente"
+    },
+    "/pjs/{pjsId}": {
+      "schema": "lookup_pjs",
+      "description": "Tabla de referencia para PJS"
+    },
+    "/ciudades/{ciudadId}": {
+      "schema": "lookup_ciudad",
+      "description": "Tabla de ciudades registradas"
+    },
+    "/medicos/{medicoId}": {
+      "schema": "lookup_medico",
+      "description": "Tabla de médicos"
+    },
+    "/aseguradoras/{aseguradoraId}": {
+      "schema": "lookup_aseguradora",
+      "description": "Tabla de aseguradoras"
+    },
+    "/instituciones/{institucionId}": {
+      "schema": "lookup_institucion",
+      "description": "Tabla de instituciones médicas"
+    },
+    "/dispensaciones/{dispensacionId}": {
+      "schema": "lookup_dispensacion",
+      "description": "Tabla de tipos de dispensación"
+    },
+    "/distribuidores/{distribuidorId}": {
+      "schema": "lookup_distribuidor",
+      "description": "Tabla de distribuidores"
+    },
+    "/indicaciones/{indicacionId}": {
+      "schema": "lookup_indicacion",
+      "description": "Tabla de indicaciones clínicas"
+    },
+    "/dosis/{dosisId}": {
+      "schema": "lookup_dosis",
+      "description": "Tabla de dosis de referencia"
+    }
+  }
+}

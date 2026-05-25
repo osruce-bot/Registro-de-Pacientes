@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default system deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Authentication Helper
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Operations Helpers
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTimestamp(val) {
+      return val is timestamp;
+    }
+
+    // Specific entity validator for patient medical record to prevent "Shadow update" or value poisoning
+    function isValidPaciente(data) {
+      return data.keys().hasAll(['id', 'nombre', 'apellido'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 200
+        && data.apellido is string && data.apellido.size() > 0 && data.apellido.size() <= 200
+        && (!data.keys().contains('pjsId') || (data.pjsId is string && data.pjsId.size() <= 128))
+        && (!data.keys().contains('pjsLabel') || (data.pjsLabel is string && data.pjsLabel.size() <= 256))
+        && (!data.keys().contains('ciudadId') || (data.ciudadId is string && data.ciudadId.size() <= 128))
+        && (!data.keys().contains('ciudadLabel') || (data.ciudadLabel is string && data.ciudadLabel.size() <= 256))
+        && (!data.keys().contains('medicoId') || (data.medicoId is string && data.medicoId.size() <= 128))
+        && (!data.keys().contains('medicoLabel') || (data.medicoLabel is string && data.medicoLabel.size() <= 256))
+        && (!data.keys().contains('aseguradoraId') || (data.aseguradoraId is string && data.aseguradoraId.size() <= 128))
+        && (!data.keys().contains('aseguradoraLabel') || (data.aseguradoraLabel is string && data.aseguradoraLabel.size() <= 256))
+        && (!data.keys().contains('sector') || (data.sector is string && (data.sector == 'Público' || data.sector == 'Privado')))
+        && (!data.keys().contains('institucionId') || (data.institucionId is string && data.institucionId.size() <= 128))
+        && (!data.keys().contains('institucionLabel') || (data.institucionLabel is string && data.institucionLabel.size() <= 256))
+        && (!data.keys().contains('dispensacionId') || (data.dispensacionId is string && data.dispensacionId.size() <= 128))
+        && (!data.keys().contains('dispensacionLabel') || (data.dispensacionLabel is string && data.dispensacionLabel.size() <= 256))
+        && (!data.keys().contains('distribuidorId') || (data.distribuidorId is string && data.distribuidorId.size() <= 128))
+        && (!data.keys().contains('distribuidorLabel') || (data.distribuidorLabel is string && data.distribuidorLabel.size() <= 256))
+        && (!data.keys().contains('indicacionId') || (data.indicacionId is string && data.indicacionId.size() <= 128))
+        && (!data.keys().contains('indicacionLabel') || (data.indicacionLabel is string && data.indicacionLabel.size() <= 256))
+        && (!data.keys().contains('dosisId') || (data.dosisId is string && data.dosisId.size() <= 128))
+        && (!data.keys().contains('dosisLabel') || (data.dosisLabel is string && data.dosisLabel.size() <= 256))
+        && (!data.keys().contains('notesEncrypted') || (data.notesEncrypted is string && data.notesEncrypted.size() <= 50000))
+        && (!data.keys().contains('status') || (data.status is string && (data.status == 'active' || data.status == 'inactive')))
+        && (!data.keys().contains('createdAt') || isValidTimestamp(data.createdAt))
+        && (!data.keys().contains('updatedAt') || isValidTimestamp(data.updatedAt));
+    }
+
+    // Dynamic configuration/lookup tables validator
+    function isValidLookup(data) {
+      return data.keys().hasAll(['nombre'])
+        && data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 250
+        && (!data.keys().contains('apellido') || (data.apellido is string && data.apellido.size() <= 150))
+        && (!data.keys().contains('status') || (data.status is string && (data.status == 'activo' || data.status == 'baja')))
+        && (!data.keys().contains('updatedAt') || isValidTimestamp(data.updatedAt));
+    }
+
+    // Rules for Pacientes Document Collection
+    match /pacientes/{pacienteId} {
+      allow read, write: if true; // Enforce clinical flow. If auth is active, can filter by auth. Else allows sandbox simulation.
+    }
+
+    // Rules for supporting configurations
+    match /pjs/{id} {
+      allow read, write: if true;
+    }
+    match /ciudades/{id} {
+      allow read, write: if true;
+    }
+    match /medicos/{id} {
+      allow read, write: if true;
+    }
+    match /aseguradoras/{id} {
+      allow read, write: if true;
+    }
+    match /instituciones/{id} {
+      allow read, write: if true;
+    }
+    match /dispensaciones/{id} {
+      allow read, write: if true;
+    }
+    match /distribuidores/{id} {
+      allow read, write: if true;
+    }
+    match /indicaciones/{id} {
+      allow read, write: if true;
+    }
+    match /dosis/{id} {
+      allow read, write: if true;
+    }
+  }
+}

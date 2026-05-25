@@ -1,0 +1,6 @@
+{
+  "name": "Registros de Pacientes",
+  "description": "Aplicación clínica para el almacenamiento seguro, búsqueda y reportes en PDF de expedientes médicos de pacientes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
