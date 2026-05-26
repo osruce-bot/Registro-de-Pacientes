@@ -87,27 +87,30 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       value,
     })).sort((a, b) => b.value - a.value);
 
+    // City colors: unique blues/greens
+    const CITY_COLORS = ["#3b82f6", "#0ea5e9", "#10b981", "#14b8a6", "#6366f1", "#94a3b8"];
+
     let processed: { name: string; value: number; color: string; percentage: number }[] = [];
 
-    if (sorted.length <= 8) {
+    if (sorted.length <= 6) {
       processed = sorted.map((item, index) => ({
         ...item,
-        color: COLORS_PALETTE[index % COLORS_PALETTE.length],
+        color: CITY_COLORS[index % CITY_COLORS.length],
         percentage: Math.round((item.value / total) * 100)
       }));
     } else {
-      const top = sorted.slice(0, 7);
-      const othersCount = sorted.slice(7).reduce((acc, curr) => acc + curr.value, 0);
+      const top = sorted.slice(0, 5);
+      const othersCount = sorted.slice(5).reduce((acc, curr) => acc + curr.value, 0);
       processed = [
         ...top.map((item, index) => ({
           ...item,
-          color: COLORS_PALETTE[index % COLORS_PALETTE.length],
+          color: CITY_COLORS[index % CITY_COLORS.length],
           percentage: Math.round((item.value / total) * 100)
         })),
         {
           name: "Otros",
           value: othersCount,
-          color: OTHERS_COLOR,
+          color: CITY_COLORS[5],
           percentage: Math.round((othersCount / total) * 100)
         }
       ];
@@ -128,27 +131,30 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       value,
     })).sort((a, b) => b.value - a.value);
 
+    // Insurer colors: unique warm and contrast tones
+    const INSURER_COLORS = ["#f59e0b", "#f97316", "#06b6d4", "#84cc16", "#ec4899", "#6b7280"];
+
     let processed: { name: string; value: number; color: string; percentage: number }[] = [];
 
-    if (sorted.length <= 8) {
+    if (sorted.length <= 6) {
       processed = sorted.map((item, index) => ({
         ...item,
-        color: COLORS_PALETTE[(index + 3) % COLORS_PALETTE.length], // Offset to differentiate charts slightly
+        color: INSURER_COLORS[index % INSURER_COLORS.length],
         percentage: Math.round((item.value / total) * 100)
       }));
     } else {
-      const top = sorted.slice(0, 7);
-      const othersCount = sorted.slice(7).reduce((acc, curr) => acc + curr.value, 0);
+      const top = sorted.slice(0, 5);
+      const othersCount = sorted.slice(5).reduce((acc, curr) => acc + curr.value, 0);
       processed = [
         ...top.map((item, index) => ({
           ...item,
-          color: COLORS_PALETTE[(index + 3) % COLORS_PALETTE.length],
+          color: INSURER_COLORS[index % INSURER_COLORS.length],
           percentage: Math.round((item.value / total) * 100)
         })),
         {
           name: "Otros",
           value: othersCount,
-          color: OTHERS_COLOR,
+          color: INSURER_COLORS[5],
           percentage: Math.round((othersCount / total) * 100)
         }
       ];
@@ -169,27 +175,30 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       value,
     })).sort((a, b) => b.value - a.value);
 
+    // PJS colors: unique purples/indigo/pink shades
+    const PJS_COLORS = ["#8b5cf6", "#a855f7", "#ec4899", "#f43f5e", "#6366f1", "#475569"];
+
     let processed: { name: string; value: number; color: string; percentage: number }[] = [];
 
-    if (sorted.length <= 8) {
+    if (sorted.length <= 6) {
       processed = sorted.map((item, index) => ({
         ...item,
-        color: COLORS_PALETTE[(index + 6) % COLORS_PALETTE.length], // Offset to differentiate charts slightly
+        color: PJS_COLORS[index % PJS_COLORS.length],
         percentage: Math.round((item.value / total) * 100)
       }));
     } else {
-      const top = sorted.slice(0, 7);
-      const othersCount = sorted.slice(7).reduce((acc, curr) => acc + curr.value, 0);
+      const top = sorted.slice(0, 5);
+      const othersCount = sorted.slice(5).reduce((acc, curr) => acc + curr.value, 0);
       processed = [
         ...top.map((item, index) => ({
           ...item,
-          color: COLORS_PALETTE[(index + 6) % COLORS_PALETTE.length],
+          color: PJS_COLORS[index % PJS_COLORS.length],
           percentage: Math.round((item.value / total) * 100)
         })),
         {
           name: "Otros",
           value: othersCount,
-          color: OTHERS_COLOR,
+          color: PJS_COLORS[5],
           percentage: Math.round((othersCount / total) * 100)
         }
       ];
@@ -511,7 +520,7 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="w-full sm:w-1/2 space-y-1 max-h-[140px] overflow-y-auto px-2 custom-scrollbar">
+              <div className="w-full sm:w-1/2 space-y-1 overflow-hidden px-2">
                 {cityPieData.map((item, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-0.5 text-[10px]">
                     <div className="flex items-center gap-1 overflow-hidden">
@@ -568,7 +577,7 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="w-full sm:w-1/2 space-y-1 max-h-[140px] overflow-y-auto px-2 custom-scrollbar">
+              <div className="w-full sm:w-1/2 space-y-1 overflow-hidden px-2">
                 {pjsPieData.map((item, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-0.5 text-[10px]">
                     <div className="flex items-center gap-1 overflow-hidden">
@@ -625,7 +634,7 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="w-full sm:w-1/2 space-y-1 max-h-[140px] overflow-y-auto px-2 custom-scrollbar">
+              <div className="w-full sm:w-1/2 space-y-1 overflow-hidden px-2">
                 {insurerPieData.map((item, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-0.5 text-[10px]">
                     <div className="flex items-center gap-1 overflow-hidden">
