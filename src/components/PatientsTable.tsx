@@ -229,6 +229,7 @@ export default function PatientsTable({
   const [tempDistribuidorId, setTempDistribuidorId] = useState("");
   const [tempIndicacionId, setTempIndicacionId] = useState("");
   const [tempDosisId, setTempDosisId] = useState("");
+  const [tempLineaTratamiento, setTempLineaTratamiento] = useState("");
   const [tempFechaIngreso, setTempFechaIngreso] = useState("");
   const [tempFechaBaja, setTempFechaBaja] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -421,6 +422,7 @@ export default function PatientsTable({
     setTempDistribuidorId(p.distribuidorId);
     setTempIndicacionId(p.indicacionId);
     setTempDosisId(p.dosisId);
+    setTempLineaTratamiento(p.lineaTratamiento || "1era Línea");
     setTempFechaIngreso(p.fechaIngreso ? formatDateToYMD(p.fechaIngreso) : "");
     setTempFechaBaja(p.fechaBaja ? formatDateToYMD(p.fechaBaja) : "");
   };
@@ -451,6 +453,7 @@ export default function PatientsTable({
       indicacionLabel: getSelectedLabel("indicaciones", tempIndicacionId),
       dosisId: tempDosisId,
       dosisLabel: getSelectedLabel("dosis", tempDosisId),
+      lineaTratamiento: tempLineaTratamiento,
       fechaIngreso: formatDateToDMY(tempFechaIngreso),
       fechaBaja: tempFechaBaja ? formatDateToDMY(tempFechaBaja) : "",
       updatedAt: new Date().toISOString()
@@ -500,9 +503,10 @@ export default function PatientsTable({
       { label: "DISPENSACIÓN", x: 147.5, width: 23 },
       { label: "DISTRIBUIDOR", x: 170.5, width: 23 },
       { label: "INDICACIÓN", x: 193.5, width: 23 },
-      { label: "DOSIS", x: 216.5, width: 18 },
-      { label: "FECHA INGRESO", x: 234.5, width: 24 },
-      { label: "MESES", x: 258.5, width: 26 }
+      { label: "DOSIS", x: 216.5, width: 15 },
+      { label: "LÍNEA TTO", x: 231.5, width: 17 },
+      { label: "FECHA INGRESO", x: 248.5, width: 21 },
+      { label: "MESES", x: 269.5, width: 15 }
     ];
 
     // Header section
@@ -598,6 +602,7 @@ export default function PatientsTable({
         (p.distribuidorLabel || "—").slice(0, 15),
         (p.indicacionLabel || "—").slice(0, 18),
         (p.dosisLabel || "—").slice(0, 14),
+        (p.lineaTratamiento || "1era Línea").slice(0, 12),
         (p.fechaIngreso ? formatDateToDMY(p.fechaIngreso) : "—"),
         calculateMonthsElapsed(p.fechaIngreso, p.createdAt)
       ];
@@ -709,41 +714,7 @@ export default function PatientsTable({
               Descargar Reporte PDF (A4)
             </button>
 
-            {pacientes.length > 0 && (
-              <div className="flex items-center gap-1.5 transition-all" id="database-clear-button-container">
-                {confirmClear ? (
-                  <div className="flex items-center gap-1 bg-red-50/80 border border-red-200 rounded-xl p-1 animate-fade-in">
-                    <span className="text-[10px] text-red-700 font-bold px-2 hidden lg:inline">¿Eliminar {pacientes.length} registros? Irreversible.</span>
-                    <button
-                      type="button"
-                      onClick={handleClearAllClick}
-                      disabled={clearingInProgress}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors disabled:bg-slate-350"
-                    >
-                      {clearingInProgress ? "Eliminando..." : "Sí, borrar todo"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmClear(false)}
-                      disabled={clearingInProgress}
-                      className="px-2 py-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 text-xs font-semibold rounded-lg cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmClear(true)}
-                    className="px-4 py-2 bg-red-50 hover:bg-red-105 text-red-600 border border-red-150/40 text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-                    title="Borrar todos los pacientes registrados de la base de datos"
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                    Vaciar Pacientes
-                  </button>
-                )}
-              </div>
-            )}
+
           </div>
         </div>
 
@@ -968,6 +939,7 @@ export default function PatientsTable({
                   <th className="py-3.5 px-4 bg-slate-50/95">Distribuidor</th>
                   <th className="py-3.5 px-4 bg-slate-50/95">Indicación</th>
                   <th className="py-3.5 px-4 bg-slate-50/95">Dosis</th>
+                  <th className="py-3.5 px-4 bg-slate-50/95">Línea Tto.</th>
                   <th className="py-3.5 px-4 bg-slate-50/95">Ingreso / Baja</th>
                   <th className="py-3.5 px-4 bg-slate-50/95 text-center">Meses</th>
                   <th className="py-3.5 px-4 bg-slate-50/95 text-right">Acciones</th>
@@ -1014,6 +986,9 @@ export default function PatientsTable({
                         </td>
                         <td className="py-3 px-4 text-slate-600 font-mono text-[10px]">
                           {p.dosisLabel || <span className="text-slate-305">—</span>}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap">
+                          {p.lineaTratamiento || "1era Línea"}
                         </td>
                         <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">
                           <div className="flex flex-col gap-1 items-start">
@@ -1086,6 +1061,7 @@ export default function PatientsTable({
                                 <p><strong>Aseguradora:</strong> {p.aseguradoraLabel || "Sin seguro"}</p>
                                 <p><strong>Sector:</strong> {p.sector}</p>
                                 <p><strong>Institución:</strong> {p.institucionLabel || "No especificada"}</p>
+                                <p><strong>Línea de Tratamiento:</strong> {p.lineaTratamiento || "1era Línea"}</p>
                               </div>
 
                               {/* Clinical Right block */}
@@ -1196,6 +1172,7 @@ export default function PatientsTable({
                       <p><strong>Médico:</strong> {p.medicoLabel || "No asignado"}</p>
                       <p><strong>Miembro PJS:</strong> {p.pjsLabel || "Particular"}</p>
                       <p><strong>Establecimiento:</strong> {p.institucionLabel || "No registrado"}</p>
+                      <p><strong>Línea de Tratamiento:</strong> {p.lineaTratamiento || "1era Línea"}</p>
                       <p><strong>Dosis:</strong> {p.dosisLabel || "—"}</p>
                       <p><strong>Distribuidor:</strong> {p.distribuidorLabel || "—"}</p>
                       <p><strong>Dispensación:</strong> {p.dispensacionLabel || "—"}</p>
@@ -1350,6 +1327,24 @@ export default function PatientsTable({
                     options={sortLookupList(lookups.dosis || [])}
                     placeholder="-- Sin asociar --"
                   />
+                </div>
+
+                {/* Línea de Tratamiento */}
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Línea de Tratamiento *</label>
+                  <select
+                    id="edit-linea-tratamiento"
+                    required
+                    value={tempLineaTratamiento}
+                    onChange={(e) => setTempLineaTratamiento(e.target.value)}
+                    className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 cursor-pointer font-medium"
+                  >
+                    <option value="1era Línea">1era Línea (1L)</option>
+                    <option value="2da Línea">2da Línea (2L)</option>
+                    <option value="3era Línea">3era Línea (3L)</option>
+                    <option value="Mantenimiento">Mantenimiento</option>
+                    <option value="Adyuvancia / Neoadyuvancia">Adyuvancia / Neoadyuvancia</option>
+                  </select>
                 </div>
 
                 {/* Fecha de Ingreso */}

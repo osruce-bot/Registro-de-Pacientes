@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { LookupItem, LookupType, LOOKUPS_CONFIG, LookupConfig, Paciente, capitalizeProperName } from "../types";
-import { Plus, Power, PowerOff, Sparkles, SlidersHorizontal, MapPin, Stethoscope, Briefcase, Hash, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Power, PowerOff, Sparkles, SlidersHorizontal, MapPin, Stethoscope, Briefcase, Hash, Trash2, AlertTriangle, Edit2, Check, X, Trash } from "lucide-react";
 
 interface LookupManagerProps {
   typesInGroup: LookupType[];
@@ -8,6 +8,7 @@ interface LookupManagerProps {
   lookups: Record<LookupType, LookupItem[]>;
   onSaveItem: (type: LookupType, item: LookupItem) => Promise<void>;
   onChangeStatus: (type: LookupType, id: string, newStatus: "activo" | "baja") => Promise<void>;
+  onDeleteItem?: (type: LookupType, id: string) => Promise<void>;
   pacientes?: Paciente[];
   onReassignPjs?: (
     sourcePjsId: string,
@@ -23,6 +24,7 @@ export default function LookupManager({
   lookups, 
   onSaveItem, 
   onChangeStatus,
+  onDeleteItem,
   pacientes,
   onReassignPjs,
   onClearAllLookups,
@@ -53,6 +55,59 @@ export default function LookupManager({
   const [clearingActive, setClearingActive] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [confirmClearActive, setConfirmClearActive] = useState(false);
+
+  // States for live Editing of catalog items
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNombre, setEditNombre] = useState("");
+  const [editApellido, setEditApellido] = useState("");
+
+  // States for live Deletion of catalog items
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Handlers for active editing/deleting
+  const handleStartEdit = (item: LookupItem) => {
+    setEditingId(item.id);
+    setEditNombre(item.nombre);
+    setEditApellido(item.apellido || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditNombre("");
+    setEditApellido("");
+  };
+
+  const handleSaveEditItem = async (id: string, originalStatus: "activo" | "baja") => {
+    if (!editNombre.trim()) {
+      setErrorMsg("El nombre o valor no puede estar vacío.");
+      return;
+    }
+    const updated: LookupItem = {
+      id,
+      nombre: capitalizeProperName(editNombre.trim()),
+      apellido: currentConfig.hasSurname && editApellido.trim() ? capitalizeProperName(editApellido.trim()) : undefined,
+      status: originalStatus
+    };
+    try {
+      await onSaveItem(activeTab, updated);
+      handleCancelEdit();
+      setSuccessMsg("Registro actualizado correctamente.");
+    } catch (e) {
+      setErrorMsg("Error al actualizar el registro en Firestore.");
+    }
+  };
+
+  const handleExecDelete = async (id: string) => {
+    try {
+      if (onDeleteItem) {
+        await onDeleteItem(activeTab, id);
+        setSuccessMsg("Registro eliminado correctamente.");
+      }
+      setDeletingId(null);
+    } catch (e) {
+      setErrorMsg("Error al eliminar el registro.");
+    }
+  };
 
   // Read config
   const currentConfig = LOOKUPS_CONFIG[activeTab];
@@ -247,13 +302,14 @@ export default function LookupManager({
       </div>
 
       {/* Active Manager Panel */}
-      <div className="flex-1 min-h-0 flex flex-col" id="lookup-grid-layout">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6" id="lookup-grid-layout">
         
-        <div className="w-full flex-1 min-h-0 flex flex-col space-y-4" id="lookup-tab-content">
+        {/* Left column: Add element form + specialized tools */}
+        <div className="lg:col-span-4 flex flex-col gap-4 overflow-y-auto pr-1" id="lookup-left-column">
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shrink-0">
-            <h3 className="font-semibold text-xs text-slate-700 mb-2 flex items-center gap-1.5">
+            <h3 className="font-semibold text-xs text-slate-700 mb-3 flex items-center gap-1.5">
               <Plus className="h-4 w-4 text-indigo-600" />
-              Añadir nuevo registro a: {currentConfig.pluralLabel}
+              Añadir {currentConfig.title}
             </h3>
 
             {errorMsg && (
@@ -267,7 +323,7 @@ export default function LookupManager({
               </div>
             )}
 
-            <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <form onSubmit={handleCreate} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">
                   {currentConfig.hasSurname ? "Nombre *" : "Entidad / Valor *"}
@@ -308,190 +364,28 @@ export default function LookupManager({
                 </div>
               )}
 
-              <div>
+              <div className="pt-1">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1.5 px-4 rounded-lg inline-flex items-center justify-center gap-1 transition-colors disabled:bg-slate-300 cursor-pointer h-[34px]"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center gap-1 transition-colors disabled:bg-slate-300 cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Agregar Item
+                  Agregar Registro
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Current Elements List */}
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="flex flex-wrap items-center justify-between mb-2 shrink-0 gap-2">
-              <h4 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">
-                Catálogo actual ({items.length} totales)
-              </h4>
-              <div className="flex flex-wrap items-center gap-2">
-                {items.length > 0 && onClearSingleLookup && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmClearActive(true);
-                      setConfirmClearAll(false);
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-100 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Vaciar {currentConfig.title}
-                  </button>
-                )}
-                {onClearAllLookups && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmClearAll(true);
-                      setConfirmClearActive(false);
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 hover:text-white bg-rose-100 hover:bg-rose-700 border border-rose-200 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs"
-                  >
-                    <AlertTriangle className="h-3 w-3 text-rose-600" />
-                    Vaciar Todos los Catálogos
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {confirmClearActive && (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-3 animate-fade-in text-xs text-rose-900 shrink-0">
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
-                  <div className="space-y-1">
-                    <strong className="font-bold block">¿Eliminar todos los registros de "{currentConfig.pluralLabel}"?</strong>
-                    <p className="text-slate-600 leading-relaxed">
-                      Esta acción borrará permanentemente de forma masiva este catálogo del sistema. Los pacientes existentes vinculados a este catálogo conservarán su información de texto en el historial clínico, pero los selectores se quedarán vacíos.
-                    </p>
-                    <div className="flex items-center gap-2 pt-2">
-                      <button
-                        type="button"
-                        disabled={clearingActive}
-                        onClick={handleClearActiveCategory}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer disabled:bg-slate-300 text-xs"
-                      >
-                        {clearingActive ? "Eliminando..." : "Sí, borrar catálogo"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={clearingActive}
-                        onClick={() => setConfirmClearActive(false)}
-                        className="bg-white hover:bg-slate-100 text-slate-700 font-semibold px-3 py-1.5 border border-slate-200 rounded-lg cursor-pointer text-xs"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {confirmClearAll && (
-              <div className="bg-rose-50 border border-rose-205 rounded-xl p-4 mb-3 animate-fade-in text-xs text-rose-950 shrink-0">
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="h-4 w-4 text-rose-700 mt-0.5 shrink-0" />
-                  <div className="space-y-1.5">
-                    <strong className="font-bold block">💥 ¿Eliminar absolutamente TODOS los registros de catálogo de la base de datos?</strong>
-                    <p className="text-slate-700 leading-relaxed">
-                      Esta es una acción irreversible y crítica que eliminará permanentemente la totalidad de registros cargados en las 9 tablas de catálogo (Miembros PJS, Doctores, Ciudades, Aseguradoras, Clínicas, etc.). Esto dejará las tablas completamente en blanco para que puedas volver a cargarlas limpiamente.
-                    </p>
-                    <div className="flex items-center gap-2 pt-2">
-                      <button
-                        type="button"
-                        disabled={clearingAll}
-                        onClick={handleClearAllCategories}
-                        className="bg-rose-700 hover:bg-rose-800 text-white font-bold px-4 py-1.5 rounded-lg border-0 cursor-pointer disabled:bg-slate-300 text-xs"
-                      >
-                        {clearingAll ? "Vaciando todo..." : "Sí, vaciar todas las tablas"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={clearingAll}
-                        onClick={() => setConfirmClearAll(false)}
-                        className="bg-white hover:bg-slate-100 text-slate-700 font-semibold px-4 py-1.5 border border-slate-200 rounded-lg cursor-pointer text-xs"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="border border-slate-100 rounded-xl overflow-hidden flex-1 min-h-0 overflow-y-auto bg-white custom-scrollbar">
-              {items.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-400 bg-slate-50">
-                  Ningún elemento configurado. Use el formulario de arriba para agregar uno.
-                </div>
-              ) : (
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#fcfdfe] border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-tight sticky top-0 z-10">
-                    <tr>
-                      <th className="py-2.5 px-4 bg-[#fcfdfe]">Nombre / Entidad</th>
-                      <th className="py-2.5 px-4 bg-[#fcfdfe]">Estado</th>
-                      <th className="py-2.5 px-4 bg-[#fcfdfe] text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {items.map((item) => {
-                      const isLow = item.status === "baja";
-                      return (
-                        <tr key={item.id} className={`hover:bg-slate-50/50 ${isLow ? "bg-slate-50/30 text-slate-400" : "text-slate-700"}`}>
-                          <td className="py-2.5 px-4 font-medium">
-                            {item.nombre} {item.apellido || ""}
-                          </td>
-                          <td className="py-2.5 px-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-medium leading-none inline-block ${
-                              isLow 
-                                ? "bg-rose-50 text-rose-600 border border-rose-100" 
-                                : "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                            }`}>
-                              {isLow ? "De Baja" : "Activo"}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-right">
-                            <button
-                              onClick={() => handleToggleStatus(item)}
-                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
-                                isLow 
-                                  ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700" 
-                                  : "bg-rose-50 hover:bg-rose-100 text-rose-700"
-                              }`}
-                            >
-                              {isLow ? (
-                                <>
-                                  <Power className="h-3 w-3" />
-                                  Dar Alta
-                                </>
-                              ) : (
-                                <>
-                                  <PowerOff className="h-3 w-3" />
-                                  Dar Baja
-                                </>
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
           {/* PJS Reassignment Tool Segment */}
           {activeTab === "pjs" && (
-            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/70 shrink-0 mt-3" id="pjs-reassign-segment">
-              <h3 className="font-semibold text-xs text-indigo-900 mb-1 flex items-center gap-1.5">
-                <Briefcase className="h-4 w-4 text-indigo-650" />
-                Herramienta de Reasignación de Pacientes PJS
+            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/70 shrink-0" id="pjs-reassign-segment">
+              <h3 className="font-bold text-xs text-indigo-950 mb-1 flex items-center gap-1.5">
+                <Briefcase className="h-4 w-4 text-indigo-700" />
+                Herramienta de Reasignación
               </h3>
-              <p className="text-[11px] text-indigo-700 mb-2.5 leading-relaxed">
-                Reasigne los pacientes vinculados a un miembro PJS hacia otro miembro existente o registrar uno nuevo manualmente.
+              <p className="text-[10px] text-indigo-700 mb-3 leading-relaxed">
+                ¿Un miembro PJS se dio de baja? Reasigne sus pacientes hacia otro o registre uno nuevo.
               </p>
 
               {reassignError && (
@@ -505,10 +399,10 @@ export default function LookupManager({
                 </div>
               )}
 
-              <form onSubmit={handleExecuteReassignment} className="grid grid-cols-1 md:grid-cols-4 gap-3.5 items-end">
+              <form onSubmit={handleExecuteReassignment} className="space-y-3">
                 {/* Source PJS */}
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  <label className="block text-[10px] uppercase font-bold text-indigo-900 mb-1">
                     PJS Origen *
                   </label>
                   <select
@@ -534,7 +428,7 @@ export default function LookupManager({
 
                 {/* Target Selection */}
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  <label className="block text-[10px] uppercase font-bold text-indigo-900 mb-1">
                     PJS Destino *
                   </label>
                   <select
@@ -560,12 +454,12 @@ export default function LookupManager({
                 </div>
 
                 {/* Manual fields for new target if selected */}
-                {targetChoice === "NEW" ? (
-                  <div className="grid grid-cols-2 gap-1 px-1.5">
+                {targetChoice === "NEW" && (
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-white/60 rounded-lg border border-indigo-100">
                     <div>
                       <input
                         type="text"
-                        placeholder="Nombre nuevo"
+                        placeholder="Nombre *"
                         value={newReassignNombre}
                         onChange={(e) => setNewReassignNombre(e.target.value)}
                         className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 focus:outline-none h-[34px]"
@@ -574,23 +468,21 @@ export default function LookupManager({
                     <div>
                       <input
                         type="text"
-                        placeholder="Apellido"
+                        placeholder="Apellido *"
                         value={newReassignApellido}
                         onChange={(e) => setNewReassignApellido(e.target.value)}
                         className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 focus:outline-none h-[34px]"
                       />
                     </div>
                   </div>
-                ) : (
-                  <div className="hidden md:block"></div>
                 )}
 
                 {/* Submit Action */}
-                <div>
+                <div className="pt-1">
                   <button
                     type="submit"
                     disabled={isReassigning}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-1.5 px-4 rounded-lg inline-flex items-center justify-center gap-1 transition-colors disabled:bg-slate-350 cursor-pointer h-[34px]"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center gap-1 transition-colors disabled:bg-slate-350 cursor-pointer"
                   >
                     {isReassigning ? "Procesando..." : "Ejecutar Migración"}
                   </button>
@@ -598,6 +490,254 @@ export default function LookupManager({
               </form>
             </div>
           )}
+        </div>
+
+        {/* Right column: Current Elements List */}
+        <div className="lg:col-span-8 flex flex-col min-h-0 min-w-0" id="lookup-right-column">
+          <div className="flex flex-wrap items-center justify-between mb-3 shrink-0 gap-2">
+            <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">
+              {currentConfig.pluralLabel} actuales ({items.length})
+            </h4>
+            <div className="flex flex-wrap items-center gap-2">
+              {items.length > 0 && onClearSingleLookup && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmClearActive(true);
+                    setConfirmClearAll(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 hover:text-white bg-[#fff5f5] hover:bg-rose-650 border border-rose-100 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-xs"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Vaciar {currentConfig.title}
+                </button>
+              )}
+              {onClearAllLookups && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmClearAll(true);
+                    setConfirmClearActive(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-755 border border-rose-200 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-xs"
+                >
+                  <AlertTriangle className="h-3 w-3 text-rose-650" />
+                  Vaciar todos
+                </button>
+              )}
+            </div>
+          </div>
+
+          {confirmClearActive && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-3 animate-fade-in text-xs text-rose-900 shrink-0">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-rose-650 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <strong className="font-bold block">¿Eliminar todos los registros de "{currentConfig.pluralLabel}"?</strong>
+                  <p className="text-slate-600 leading-relaxed">
+                    Esta acción borrará permanentemente de forma masiva este catálogo del sistema.
+                  </p>
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      disabled={clearingActive}
+                      onClick={handleClearActiveCategory}
+                      className="bg-rose-650 hover:bg-rose-750 text-white font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer disabled:bg-slate-300 text-xs"
+                    >
+                      {clearingActive ? "Eliminando..." : "Sí, borrar catálogo"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={clearingActive}
+                      onClick={() => setConfirmClearActive(false)}
+                      className="bg-white hover:bg-slate-100 text-slate-700 font-semibold px-3 py-1.5 border border-slate-200 rounded-lg cursor-pointer text-xs"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {confirmClearAll && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-3 animate-fade-in text-xs text-rose-955 shrink-0">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-rose-700 mt-0.5 shrink-0" />
+                <div className="space-y-1.5">
+                  <strong className="font-bold block">💥 ¿Eliminar todos los catálogos?</strong>
+                  <p className="text-slate-705 leading-relaxed text-[11px]">
+                    Esta es una acción irreversible que eliminará la totalidad de registros cargados en las 9 tablas de catálogo.
+                  </p>
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      disabled={clearingAll}
+                      onClick={handleClearAllCategories}
+                      className="bg-rose-700 hover:bg-rose-800 text-white font-bold px-4 py-1.5 rounded-lg border-0 cursor-pointer disabled:bg-slate-300 text-xs"
+                    >
+                      {clearingAll ? "Vaciando..." : "Sí, vaciar todas"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={clearingAll}
+                      onClick={() => setConfirmClearAll(false)}
+                      className="bg-white hover:bg-slate-100 text-slate-700 font-semibold px-4 py-1.5 border border-slate-200 rounded-lg cursor-pointer text-xs"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="border border-slate-100 rounded-xl overflow-hidden flex-1 min-h-0 overflow-y-auto bg-white custom-scrollbar shadow-xs">
+            {items.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50">
+                Ningún elemento configurado. Use el formulario de la izquierda para agregar uno.
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#fcfdfe] border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                  <tr>
+                    <th className="py-2.5 px-4 bg-[#fcfdfe]">Nombre / Entidad</th>
+                    <th className="py-2.5 px-4 bg-[#fcfdfe]">Estado</th>
+                    <th className="py-2.5 px-4 bg-[#fcfdfe] text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {items.map((item) => {
+                    const isLow = item.status === "baja";
+                    const isEditing = editingId === item.id;
+                    const isDeleting = deletingId === item.id;
+                    return (
+                      <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${isLow ? "bg-slate-50/30 text-slate-400" : "text-slate-700"}`}>
+                        <td className="py-2.5 px-4 font-semibold">
+                          {isEditing ? (
+                            <div className="flex flex-col sm:flex-row gap-2 max-w-sm">
+                              <input
+                                type="text"
+                                value={editNombre}
+                                onChange={(e) => setEditNombre(e.target.value)}
+                                placeholder={currentConfig.hasSurname ? "Nombre" : "Valor"}
+                                className="text-slate-800 bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 focus:outline-none"
+                              />
+                              {currentConfig.hasSurname && (
+                                <input
+                                  type="text"
+                                  value={editApellido}
+                                  onChange={(e) => setEditApellido(e.target.value)}
+                                  placeholder="Apellido"
+                                  className="text-slate-800 bg-white border border-slate-200 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 focus:outline-none"
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <span className="break-all">{item.nombre} {item.apellido || ""}</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold leading-none inline-block ${
+                            isLow 
+                              ? "bg-rose-50 text-rose-600 border border-rose-100" 
+                              : "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                          }`}>
+                            {isLow ? "Baja" : "Activo"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right">
+                          {isEditing ? (
+                            <div className="inline-flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditItem(item.id, item.status)}
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white p-1 rounded cursor-pointer transition-colors"
+                                title="Guardar"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-1 rounded cursor-pointer transition-colors"
+                                title="Cancelar"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : isDeleting ? (
+                            <div className="inline-flex items-center gap-1.5 animate-pulse bg-rose-50 px-2 py-1 rounded-lg border border-rose-100 text-left">
+                              <span className="text-[10px] text-rose-700 font-bold">¿Eliminar?</span>
+                              <button
+                                type="button"
+                                onClick={() => handleExecDelete(item.id)}
+                                className="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                              >
+                                Sí
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeletingId(null)}
+                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1">
+                              {/* Edit Trigger */}
+                              <button
+                                type="button"
+                                onClick={() => handleStartEdit(item)}
+                                className="p-1 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50/50 rounded-md transition-all active:scale-95 cursor-pointer"
+                                title="Editar nombre/valor"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+
+                              {/* Toggle Status */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStatus(item)}
+                                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all active:scale-95 cursor-pointer ${
+                                  isLow 
+                                    ? "bg-emerald-50 hover:bg-emerald-150 text-emerald-700 border border-emerald-100" 
+                                    : "bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-100"
+                                }`}
+                              >
+                                {isLow ? (
+                                  <>
+                                    <Power className="h-3 w-3" />
+                                    <span>Dar Alta</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <PowerOff className="h-3 w-3" />
+                                    <span>Dar Baja</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* Complete Deletion Trigger */}
+                              <button
+                                type="button"
+                                onClick={() => setDeletingId(item.id)}
+                                className="p-1 px-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all active:scale-95 cursor-pointer"
+                                title="Eliminar definitivamente del sistema"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
       </div>

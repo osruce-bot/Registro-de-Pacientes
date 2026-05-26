@@ -444,6 +444,31 @@ export async function dbChangeLookupStatus(
 }
 
 /**
+ * Deletes a lookup item entirely from Cloud and local storage
+ */
+export async function dbDeleteLookupItem(
+  type: LookupType,
+  id: string
+): Promise<void> {
+  const config = LOOKUPS_CONFIG[type];
+  const path = config.collectionName;
+
+  try {
+    await deleteDoc(doc(db, path, id));
+  } catch (e) {
+    console.warn(`Firestore delete failed for ${type} ID ${id}. Synchronizing local mirror state.`, e);
+    try {
+      handleFirestoreError(e, OperationType.DELETE, `${path}/${id}`);
+    } catch (h) {}
+  }
+
+  // Local state sync
+  const list = getLocalFallback<LookupItem[]>(`lookup_${type}`, []);
+  const filtered = list.filter(item => item.id !== id);
+  setLocalFallback(`lookup_${type}`, filtered);
+}
+
+/**
  * Remove patient record entirely from Cloud
  */
 export async function dbDeletePaciente(id: string): Promise<void> {

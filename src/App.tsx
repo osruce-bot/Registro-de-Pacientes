@@ -7,7 +7,8 @@ import {
   dbDeletePaciente,
   dbClearAllPacientesOnCloud,
   dbClearAllLookupsOnCloud,
-  dbClearSingleLookupOnCloud
+  dbClearSingleLookupOnCloud,
+  dbDeleteLookupItem
 } from "./dbService";
 import { Paciente, LookupItem, LookupType, LOOKUPS_CONFIG } from "./types";
 import { encryptText } from "./encryptUtils";
@@ -38,6 +39,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronLeft,
   Users
 } from "lucide-react";
 
@@ -99,6 +101,7 @@ export default function App() {
 
   // Mobile sidebar states
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Load database structures on startup
   const fetchAllData = async () => {
@@ -262,13 +265,33 @@ export default function App() {
     }
   };
 
-  // Add lookup catalog item callback
+  // Add or update lookup catalog item callback
   const handleSaveLookup = async (type: LookupType, item: LookupItem) => {
     try {
       const saved = await dbSaveLookupItem(type, item);
+      setLookups(prev => {
+        const currentList = prev[type] || [];
+        const exists = currentList.some(i => i.id === saved.id);
+        const newList = exists
+          ? currentList.map(i => i.id === saved.id ? saved : i)
+          : [...currentList, saved];
+        return {
+          ...prev,
+          [type]: newList
+        };
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Delete a lookup item
+  const handleDeleteLookup = async (type: LookupType, id: string) => {
+    try {
+      await dbDeleteLookupItem(type, id);
       setLookups(prev => ({
         ...prev,
-        [type]: [...(prev[type] || []), saved]
+        [type]: (prev[type] || []).filter(item => item.id !== id)
       }));
     } catch (err) {
       console.error(err);
@@ -505,9 +528,10 @@ export default function App() {
 
       {/* 1. Sidebar Navigation - Desktop view & Mobile drawer wrapper */}
       <aside className={`
-        fixed inset-y-0 left-0 w-64 bg-[#0f172a] text-white flex flex-col z-50 shadow-2xl transition-transform duration-300 transform
-        lg:translate-x-0 lg:static lg:flex lg:shadow-xl shrink-0 h-full
-        ${isSidebarMobileOpen ? "translate-x-0" : "-translate-x-full"}
+        fixed inset-y-0 left-0 bg-[#0f172a] text-white flex flex-col z-50 shadow-2xl transition-all duration-300 ease-in-out shrink-0 h-full
+        lg:static lg:flex lg:shadow-xl
+        ${isSidebarMobileOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0"}
+        ${isSidebarCollapsed ? "lg:w-0 lg:opacity-0 lg:overflow-hidden lg:pointer-events-none" : "w-64 lg:w-64 lg:opacity-100"}
       `}>
         {/* Brand header */}
         <div className="p-6 flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -528,13 +552,22 @@ export default function App() {
               <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase tracking-wider">AstraZeneca</p>
             </div>
           </div>
-          {/* Close button inside mobile slide bar */}
-          <button 
-            onClick={() => setIsSidebarMobileOpen(false)} 
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {/* Close / Collapse controls inside sidebar */}
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setIsSidebarCollapsed(true)} 
+              className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:scale-95 cursor-pointer"
+              title="Colapsar menú (Ocultar)"
+            >
+              <ChevronLeft className="h-4.5 w-4.5" />
+            </button>
+            <button 
+              onClick={() => setIsSidebarMobileOpen(false)} 
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Nav elements list */}
@@ -650,14 +683,25 @@ export default function App() {
         {/* Top Header / Toolbar */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-xs">
           
-          {/* Active indicator & Mobile layout menu controller */}
+          {/* Active indicator & Sidebar toggler (Mobile + Desktop) */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSidebarMobileOpen(true)}
-              className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-              title="Abrir Menú"
+              onClick={() => {
+                if (window.innerWidth >= 1024) {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                } else {
+                  setIsSidebarMobileOpen(true);
+                }
+              }}
+              className="p-1.5 -ml-1 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+              title={isSidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className={`h-5 w-5 transition-transform ${isSidebarCollapsed ? "text-indigo-600 scale-110" : ""}`} />
+              {isSidebarCollapsed && (
+                <span className="hidden lg:inline text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md font-bold transition-all">
+                  Abrir menú
+                </span>
+              )}
             </button>
 
             <div className="flex items-center gap-2">
@@ -752,6 +796,7 @@ export default function App() {
                   lookups={lookups} 
                   onSaveItem={handleSaveLookup} 
                   onChangeStatus={handleChangeLookupStatus} 
+                  onDeleteItem={handleDeleteLookup}
                   pacientes={pacientes}
                   onReassignPjs={handleReassignPjs}
                   onClearAllLookups={handleClearAllLookups}
@@ -766,6 +811,7 @@ export default function App() {
                   lookups={lookups} 
                   onSaveItem={handleSaveLookup} 
                   onChangeStatus={handleChangeLookupStatus} 
+                  onDeleteItem={handleDeleteLookup}
                   pacientes={pacientes}
                   onReassignPjs={handleReassignPjs}
                   onClearAllLookups={handleClearAllLookups}
@@ -780,6 +826,7 @@ export default function App() {
                   lookups={lookups} 
                   onSaveItem={handleSaveLookup} 
                   onChangeStatus={handleChangeLookupStatus} 
+                  onDeleteItem={handleDeleteLookup}
                   pacientes={pacientes}
                   onReassignPjs={handleReassignPjs}
                   onClearAllLookups={handleClearAllLookups}

@@ -22,6 +22,7 @@ export interface Paciente {
   dosisId: string;
   dosisLabel: string;
   notesEncrypted: string; // Obfuscated/encrypted clinical notes
+  lineaTratamiento?: string; // Line of treatment
   fechaIngreso?: string; // Date of entry
   fechaBaja?: string; // Date of exit/withdrawal
   createdAt: any; // Firestore Timestamp or ISO string

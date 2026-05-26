@@ -98,6 +98,7 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
     distribuidor: -1,
     indicacion: -1,
     dosis: -1,
+    lineaTratamiento: -1,
     fechaIngreso: -1,
   });
 
@@ -195,7 +196,7 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
     const newMappings: Record<string, number> = {
       id: -1, nombre: -1, apellido: -1, pjs: -1, ciudad: -1, medico: -1,
       aseguradora: -1, sector: -1, institucion: -1, dispensacion: -1,
-      distribuidor: -1, indicacion: -1, dosis: -1, fechaIngreso: -1
+      distribuidor: -1, indicacion: -1, dosis: -1, lineaTratamiento: -1, fechaIngreso: -1
     };
 
     headers.forEach((h, idx) => {
@@ -236,6 +237,8 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
         newMappings.indicacion = idx;
       } else if (clean.includes("dosis") || clean.includes("concentracion") || clean.includes("posologia")) {
         newMappings.dosis = idx;
+      } else if (clean.includes("linea")) {
+        newMappings.lineaTratamiento = idx;
       } else if (
         (clean.includes("fecha") || clean.includes("ingreso") || clean.includes("entrada") || clean.includes("f.ing") || clean === "f.i" || clean.startsWith("f ")) &&
         !clean.includes("baja") &&
@@ -429,6 +432,7 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
         dosisId: dosisResolved.id,
         dosisLabel: dosisResolved.label,
         notesEncrypted: "",
+        lineaTratamiento: ["1era Línea", "2da Línea", "3era Línea", "Mantenimiento"][i % 4],
         fechaIngreso: formattedFecha,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -626,6 +630,7 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
       const distribuidorVal = getVal(mappings.distribuidor);
       const indicacionVal = getVal(mappings.indicacion);
       const dosisVal = getVal(mappings.dosis);
+      const lineaTratamientoVal = mappings.lineaTratamiento !== undefined && mappings.lineaTratamiento !== -1 ? getVal(mappings.lineaTratamiento) : "";
       const rawFecha = getVal(mappings.fechaIngreso);
 
        // Helper for Excel numeric serial-date codes and robust multi-format parsing
@@ -853,6 +858,7 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
         dosisId: dosisResolved.id,
         dosisLabel: dosisResolved.label,
         notesEncrypted: "",
+        lineaTratamiento: lineaTratamientoVal,
         fechaIngreso: formattedFecha,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -1296,6 +1302,20 @@ export default function DataImporter({ lookups, pacientes, onRefreshData, onAddP
                 <select
                   value={mappings.dosis}
                   onChange={(e) => handleUpdateMapping("dosis", parseInt(e.target.value, 10))}
+                  className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                >
+                  <option value={-1}>[Dejar Vacío]</option>
+                  {availableColumns.map(col => (
+                    <option key={col.index} value={col.index}>{col.headerValue}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">Línea de Tratamiento</label>
+                <select
+                  value={mappings.lineaTratamiento}
+                  onChange={(e) => handleUpdateMapping("lineaTratamiento", parseInt(e.target.value, 10))}
                   className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value={-1}>[Dejar Vacío]</option>

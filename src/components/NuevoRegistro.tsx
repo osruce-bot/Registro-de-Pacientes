@@ -23,6 +23,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
   const [distribuidorId, setDistribuidorId] = useState("");
   const [indicacionId, setIndicacionId] = useState("");
   const [dosisId, setDosisId] = useState("");
+  const [lineaTratamiento, setLineaTratamiento] = useState("1era Línea");
   const [fechaIngreso, setFechaIngreso] = useState("");
 
   // UI state
@@ -98,6 +99,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
       dosisId,
       dosisLabel,
       notesEncrypted: "",
+      lineaTratamiento,
       fechaIngreso: formatDateToDMY(fechaIngreso),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -121,6 +123,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
         setDistribuidorId("");
         setIndicacionId("");
         setDosisId("");
+        setLineaTratamiento("1era Línea");
         
         // Reset to empty for next record
         setFechaIngreso("");
@@ -340,7 +343,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
             </div>
 
             {/* Dosis */}
-            <div className="sm:col-span-2 md:col-span-1">
+            <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-dosis">
                 Dosis de Referencia
               </label>
@@ -351,6 +354,26 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
                 options={getActiveOptions("dosis")}
                 placeholder="-- Seleccionar dosis --"
               />
+            </div>
+
+            {/* Línea de tratamiento */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-linea-tratamiento">
+                Línea de Tratamiento *
+              </label>
+              <select
+                id="sel-linea-tratamiento"
+                required
+                value={lineaTratamiento}
+                onChange={(e) => setLineaTratamiento(e.target.value)}
+                className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 font-medium cursor-pointer"
+              >
+                <option value="1era Línea">1era Línea (1L)</option>
+                <option value="2da Línea">2da Línea (2L)</option>
+                <option value="3era Línea">3era Línea (3L)</option>
+                <option value="Mantenimiento">Mantenimiento</option>
+                <option value="Adyuvancia / Neoadyuvancia">Adyuvancia / Neoadyuvancia</option>
+              </select>
             </div>
 
           </div>
