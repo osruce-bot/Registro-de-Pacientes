@@ -71,6 +71,25 @@ export default function App() {
   const [guestMode, setGuestMode] = useState(true); // Default guest sandbox
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Custom Username/Password Authorization (mbraschi / Zafiro641)
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    return localStorage.getItem("med_auth_authorized") === "true";
+  });
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const handleCustomLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginUser.trim().toLowerCase() === "mbraschi" && loginPassword === "Zafiro641") {
+      localStorage.setItem("med_auth_authorized", "true");
+      setIsAuthorized(true);
+      setLoginError("");
+    } else {
+      setLoginError("Usuario o clave incorrectos. Intente de nuevo.");
+    }
+  };
+
   // Client Cryptographic Key
   const [clinicalKey, setClinicalKey] = useState("Zafiro641");
 
@@ -140,6 +159,8 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    localStorage.removeItem("med_auth_authorized");
+    setIsAuthorized(false);
     setGuestMode(true);
     await fetchAllData();
   };
@@ -355,6 +376,124 @@ export default function App() {
     return "Consola Médica";
   };
 
+  if (!isAuthorized && !currentUser) {
+    return (
+      <div className="min-h-screen w-screen bg-[#070b13] text-slate-100 flex items-center justify-center p-4 font-sans relative overflow-hidden" id="login-screen-root">
+        {/* Abstract futuristic medical ambient elements */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-blue-500 blur-[120px] animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-emerald-500 blur-[100px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+        </div>
+
+        <div className="w-full max-w-sm bg-[#0f172a] border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 flex flex-col items-center">
+          
+          {/* Logo */}
+          <div className="h-16 w-16 bg-[#1e293b] rounded-2xl flex items-center justify-center mb-6 shadow-inner border border-slate-800">
+            <svg
+              viewBox="0 0 128 128"
+              className="h-10 w-10 shrink-0"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M59.32 15.5c-4.47 0-9.21 2.21-12.72 5.34-5.59 5.01-8.52 12.39-8.52 19.34 0 5.4 1.83 10.74 5.32 14.88 4.7 5.56 11.23 8.35 17.84 10.15 4.88 1.33 9.76 2.37 13.06 4.3 3.65 2.14 6.64 5.48 7.37 10.18 1.01 6.54-2.62 13.07-8.1 17.51L81 83.2c11.08-9.01 16.03-21.84 12.18-35.15-2.02-6.99-6.3-12.63-12.32-15.86-5.46-2.92-11.45-3.8-17.75-5.51-4.14-1.12-8.31-2.58-11.45-5.36-2.88-2.55-4.47-5.91-4.47-9.58 0-6.73 5.4-12.24 12.13-12.24 3.7 0 7.35 1.58 9.94 4.09l6.57-7.25c-4.12-4.04-10-6.34-15.8-6.34zm-22.1 43.1L12 91h15l14-25.2 6.5-11.7-6.78 4.5zM71 78.5s-4.3 3.9-9.8 4.4c-9.5.8-18.4-5.1-21.4-14.3-1.6-4.9-1.2-10 1.1-14.5l-12.7-7.6c-4.66 8.33-5.26 18.23-1.5 27 5.25 12.2 18.15 19.8 31.4 18.4 10.9-1.1 19.7-7.8 23.4-16.7l-10.5-6.7z"
+                fill="#EEB709"
+              />
+            </svg>
+          </div>
+
+          <h1 className="text-xl font-bold tracking-tight text-white font-sans text-center">Registros de Pacientes</h1>
+          <p className="text-slate-400 text-xs text-center mt-1 font-sans">Sistema de Control y Acceso AstraZeneca</p>
+
+          <form onSubmit={handleCustomLogin} className="w-full mt-6 space-y-4">
+            
+            {loginError && (
+              <div className="bg-rose-950/50 border border-rose-800/80 text-rose-200 text-xs px-4 py-3 rounded-xl flex items-center gap-2 font-medium">
+                <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">
+                Usuario Autorizado
+              </label>
+              <input
+                type="text"
+                required
+                value={loginUser}
+                onChange={(e) => setLoginUser(e.target.value)}
+                placeholder="mbraschi"
+                className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl py-2.5 px-3.5 text-xs focus:outline-none transition-all placeholder:text-slate-600 text-white"
+                id="login-username-input"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">
+                Clave de Acceso
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl py-2.5 pl-3.5 pr-10 text-xs focus:outline-none transition-all placeholder:text-slate-600 text-white"
+                  id="login-password-input"
+                />
+                <Lock className="absolute right-3 top-3 h-4 w-4 text-slate-600" />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer mt-2"
+              id="login-submit-button"
+            >
+              <LogIn className="h-4 w-4" />
+              Ingresar a la Consola
+            </button>
+          </form>
+
+          {/* Separation Divider */}
+          <div className="w-full flex items-center justify-between gap-3 my-5">
+            <span className="h-px bg-slate-800 flex-1"></span>
+            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">O también</span>
+            <span className="h-px bg-slate-800 flex-1"></span>
+          </div>
+
+          <button
+            onClick={handleGoogleLogin}
+            disabled={authLoading}
+            className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            id="google-alternate-login-button"
+          >
+            {authLoading ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-500" />
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                <span>Autenticar con Google</span>
+              </>
+            )}
+          </button>
+
+          <p className="text-[9px] text-center text-slate-500 leading-normal mt-6 w-full border-t border-slate-900/40 pt-4 font-sans">
+            Acceso restringido a personal médico autorizado. Toda actividad es supervisada por las directivas de AstraZeneca.
+          </p>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-screen bg-[#f8fafc] text-slate-850 flex overflow-hidden font-sans" id="medical-application-root">
       
@@ -466,16 +605,20 @@ export default function App() {
               />
             ) : (
               <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center border border-slate-600 font-bold text-sm text-slate-200">
-                {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : "JD"}
+                {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : isAuthorized ? "MB" : "JD"}
               </div>
             )}
             <div className="text-xs min-w-0 font-sans">
-              <p className="font-bold text-slate-100 truncate">{currentUser ? (currentUser.displayName || "Médico Clínico") : "Dr. Juan Delgado"}</p>
-              <p className="text-slate-400 text-[10px] truncate">{currentUser ? "Administrador de Registros" : "Médico Residente"}</p>
+              <p className="font-bold text-slate-100 truncate">
+                {currentUser ? (currentUser.displayName || "Médico Clínico") : isAuthorized ? "mbraschi" : "Dr. Juan Delgado"}
+              </p>
+              <p className="text-slate-400 text-[10px] truncate">
+                {currentUser ? "Administrador de Registros" : isAuthorized ? "Administrador de Registros" : "Médico Residente"}
+              </p>
             </div>
           </div>
           
-          {currentUser ? (
+          {(currentUser || isAuthorized) ? (
             <button 
               onClick={handleLogout}
               className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded text-xs transition-colors cursor-pointer text-center font-medium flex items-center justify-center gap-1.5"
