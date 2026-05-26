@@ -37,7 +37,8 @@ import {
   AlertTriangle,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  Users
 } from "lucide-react";
 
 type MainTab = 
@@ -45,11 +46,14 @@ type MainTab =
   | "pacientes_grid"
   | "ingreso"
   | "importor"
+  | "grupo_personal"
+  | "grupo_sedes"
+  | "grupo_coberturas"
+  | "sector"
   | "pjs"
   | "ciudades"
   | "medicos"
   | "aseguradoras"
-  | "sector"
   | "instituciones"
   | "dispensaciones"
   | "distribuidores"
@@ -354,16 +358,10 @@ export default function App() {
     {
       title: "Tablas de Catálogo",
       items: [
-        { id: "pjs", label: "Miembros PJS", icon: Shield },
-        { id: "ciudades", label: "Ciudades del Perú", icon: Map },
-        { id: "medicos", label: "Médicos Tratantes", icon: Stethoscope },
-        { id: "aseguradoras", label: "Aseguradoras", icon: Shield },
+        { id: "grupo_personal", label: "Personal y Médicos", icon: Users },
+        { id: "grupo_sedes", label: "Geografía y Canales", icon: Map },
+        { id: "grupo_coberturas", label: "Tratamiento y Seguros", icon: Shield },
         { id: "sector", label: "Sector de Salud", icon: Building2 },
-        { id: "instituciones", label: "Instituciones", icon: Building2 },
-        { id: "dispensaciones", label: "Dispensación", icon: Database },
-        { id: "distribuidores", label: "Distribuidor", icon: Database },
-        { id: "indicaciones", label: "Indicaciones", icon: Layers },
-        { id: "dosis", label: "Dosis Clínicas", icon: Database },
       ]
     }
   ];
@@ -549,9 +547,14 @@ export default function App() {
               {group.items.map((item) => {
                 const isSelected = activeTab === item.id;
                 const IconComponent = item.icon;
-                const listSize = item.id !== "dashboard" && item.id !== "pacientes_grid" && item.id !== "ingreso" && item.id !== "sector"
-                  ? (lookups[item.id as LookupType] || []).filter(i => i.status === "activo").length
-                  : null;
+                const listSize = 
+                  item.id === "grupo_personal"
+                    ? ((lookups.pjs || []).filter(i => i.status === "activo").length + (lookups.medicos || []).filter(i => i.status === "activo").length)
+                    : item.id === "grupo_sedes"
+                    ? ((lookups.ciudades || []).filter(i => i.status === "activo").length + (lookups.instituciones || []).filter(i => i.status === "activo").length + (lookups.dispensaciones || []).filter(i => i.status === "activo").length)
+                    : item.id === "grupo_coberturas"
+                    ? ((lookups.aseguradoras || []).filter(i => i.status === "activo").length + (lookups.distribuidores || []).filter(i => i.status === "activo").length + (lookups.indicaciones || []).filter(i => i.status === "activo").length + (lookups.dosis || []).filter(i => i.status === "activo").length)
+                    : null;
 
                 return (
                   <button
@@ -741,10 +744,39 @@ export default function App() {
                 />
               )}
 
-              {/* Dynamic Lookup Manager for Catalog Tables */}
-              {["pjs", "ciudades", "medicos", "aseguradoras", "instituciones", "dispensaciones", "distribuidores", "indicaciones", "dosis"].includes(activeTab) && (
+              {/* Unified Catalog Group views */}
+              {activeTab === "grupo_personal" && (
                 <LookupManager 
-                  activeType={activeTab as LookupType}
+                  typesInGroup={["pjs", "medicos"]}
+                  groupTitle="Personal PJS y Médicos"
+                  lookups={lookups} 
+                  onSaveItem={handleSaveLookup} 
+                  onChangeStatus={handleChangeLookupStatus} 
+                  pacientes={pacientes}
+                  onReassignPjs={handleReassignPjs}
+                  onClearAllLookups={handleClearAllLookups}
+                  onClearSingleLookup={handleClearSingleLookup}
+                />
+              )}
+
+              {activeTab === "grupo_sedes" && (
+                <LookupManager 
+                  typesInGroup={["ciudades", "instituciones", "dispensaciones"]}
+                  groupTitle="Sedes, Ciudades e Infraestructura"
+                  lookups={lookups} 
+                  onSaveItem={handleSaveLookup} 
+                  onChangeStatus={handleChangeLookupStatus} 
+                  pacientes={pacientes}
+                  onReassignPjs={handleReassignPjs}
+                  onClearAllLookups={handleClearAllLookups}
+                  onClearSingleLookup={handleClearSingleLookup}
+                />
+              )}
+
+              {activeTab === "grupo_coberturas" && (
+                <LookupManager 
+                  typesInGroup={["aseguradoras", "distribuidores", "indicaciones", "dosis"]}
+                  groupTitle="Tratamiento, Cobertura y Logística"
                   lookups={lookups} 
                   onSaveItem={handleSaveLookup} 
                   onChangeStatus={handleChangeLookupStatus} 

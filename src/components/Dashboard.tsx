@@ -70,6 +70,10 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
     ].filter(item => item.value > 0);
   }, [stats]);
 
+  // Palette of elegant colors
+  const COLORS_PALETTE = ["#4f46e5", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#3b82f6", "#f43f5e", "#ff8a65"];
+  const OTHERS_COLOR = "#94a3b8";
+
   // Compute city distribution for PieChart
   const cityPieData = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -78,11 +82,37 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       counts[city] = (counts[city] || 0) + 1;
     });
     const total = pacientes.length || 1;
-    return Object.entries(counts).map(([name, value]) => ({
+    const sorted = Object.entries(counts).map(([name, value]) => ({
       name,
       value,
-      percentage: Math.round((value / total) * 100)
     })).sort((a, b) => b.value - a.value);
+
+    let processed: { name: string; value: number; color: string; percentage: number }[] = [];
+
+    if (sorted.length <= 8) {
+      processed = sorted.map((item, index) => ({
+        ...item,
+        color: COLORS_PALETTE[index % COLORS_PALETTE.length],
+        percentage: Math.round((item.value / total) * 100)
+      }));
+    } else {
+      const top = sorted.slice(0, 7);
+      const othersCount = sorted.slice(7).reduce((acc, curr) => acc + curr.value, 0);
+      processed = [
+        ...top.map((item, index) => ({
+          ...item,
+          color: COLORS_PALETTE[index % COLORS_PALETTE.length],
+          percentage: Math.round((item.value / total) * 100)
+        })),
+        {
+          name: "Otros",
+          value: othersCount,
+          color: OTHERS_COLOR,
+          percentage: Math.round((othersCount / total) * 100)
+        }
+      ];
+    }
+    return processed;
   }, [pacientes]);
 
   // Compute insurer distribution for PieChart
@@ -93,11 +123,37 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       counts[label] = (counts[label] || 0) + 1;
     });
     const total = pacientes.length || 1;
-    return Object.entries(counts).map(([name, value]) => ({
+    const sorted = Object.entries(counts).map(([name, value]) => ({
       name,
       value,
-      percentage: Math.round((value / total) * 100)
     })).sort((a, b) => b.value - a.value);
+
+    let processed: { name: string; value: number; color: string; percentage: number }[] = [];
+
+    if (sorted.length <= 8) {
+      processed = sorted.map((item, index) => ({
+        ...item,
+        color: COLORS_PALETTE[(index + 3) % COLORS_PALETTE.length], // Offset to differentiate charts slightly
+        percentage: Math.round((item.value / total) * 100)
+      }));
+    } else {
+      const top = sorted.slice(0, 7);
+      const othersCount = sorted.slice(7).reduce((acc, curr) => acc + curr.value, 0);
+      processed = [
+        ...top.map((item, index) => ({
+          ...item,
+          color: COLORS_PALETTE[(index + 3) % COLORS_PALETTE.length],
+          percentage: Math.round((item.value / total) * 100)
+        })),
+        {
+          name: "Otros",
+          value: othersCount,
+          color: OTHERS_COLOR,
+          percentage: Math.round((othersCount / total) * 100)
+        }
+      ];
+    }
+    return processed;
   }, [pacientes]);
 
   // Compute PJS distribution for PieChart
@@ -108,11 +164,37 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       counts[label] = (counts[label] || 0) + 1;
     });
     const total = pacientes.length || 1;
-    return Object.entries(counts).map(([name, value]) => ({
+    const sorted = Object.entries(counts).map(([name, value]) => ({
       name,
       value,
-      percentage: Math.round((value / total) * 100)
     })).sort((a, b) => b.value - a.value);
+
+    let processed: { name: string; value: number; color: string; percentage: number }[] = [];
+
+    if (sorted.length <= 8) {
+      processed = sorted.map((item, index) => ({
+        ...item,
+        color: COLORS_PALETTE[(index + 6) % COLORS_PALETTE.length], // Offset to differentiate charts slightly
+        percentage: Math.round((item.value / total) * 100)
+      }));
+    } else {
+      const top = sorted.slice(0, 7);
+      const othersCount = sorted.slice(7).reduce((acc, curr) => acc + curr.value, 0);
+      processed = [
+        ...top.map((item, index) => ({
+          ...item,
+          color: COLORS_PALETTE[(index + 6) % COLORS_PALETTE.length],
+          percentage: Math.round((item.value / total) * 100)
+        })),
+        {
+          name: "Otros",
+          value: othersCount,
+          color: OTHERS_COLOR,
+          percentage: Math.round((othersCount / total) * 100)
+        }
+      ];
+    }
+    return processed;
   }, [pacientes]);
 
   // Compute Active vs Inactive Patients - KPI Suggestion for Retention rate
@@ -131,9 +213,6 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
       ].filter(item => item.value > 0)
     };
   }, [pacientes]);
-
-  // Palette of elegant colors
-  const COLORS_PALETTE = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#3b82f6", "#f43f5e", "#64748b"];
 
   // Helper to parse dates into YYYY-MM key
   const getMonthYearKey = (fechaIngreso?: string, createdAt?: string): string => {
@@ -422,7 +501,7 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                       dataKey="value"
                     >
                       {cityPieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS_PALETTE[index % COLORS_PALETTE.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip 
@@ -433,10 +512,10 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                 </ResponsiveContainer>
               </div>
               <div className="w-full sm:w-1/2 space-y-1 max-h-[140px] overflow-y-auto px-2 custom-scrollbar">
-                {cityPieData.slice(0, 6).map((item, i) => (
+                {cityPieData.map((item, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-0.5 text-[10px]">
                     <div className="flex items-center gap-1 overflow-hidden">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS_PALETTE[i % COLORS_PALETTE.length] }}></span>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
                       <span className="font-medium text-slate-600 truncate">{item.name}</span>
                     </div>
                     <span className="font-semibold text-slate-800 font-mono flex-shrink-0">
@@ -444,9 +523,6 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                     </span>
                   </div>
                 ))}
-                {cityPieData.length > 6 && (
-                  <div className="text-[9px] text-slate-400 text-center pt-0.5">+{cityPieData.length - 6} más</div>
-                )}
               </div>
             </div>
           )}
@@ -482,7 +558,7 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                       dataKey="value"
                     >
                       {pjsPieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS_PALETTE[(index + 2) % COLORS_PALETTE.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip 
@@ -493,10 +569,10 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                 </ResponsiveContainer>
               </div>
               <div className="w-full sm:w-1/2 space-y-1 max-h-[140px] overflow-y-auto px-2 custom-scrollbar">
-                {pjsPieData.slice(0, 6).map((item, i) => (
+                {pjsPieData.map((item, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-0.5 text-[10px]">
                     <div className="flex items-center gap-1 overflow-hidden">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS_PALETTE[(i + 2) % COLORS_PALETTE.length] }}></span>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
                       <span className="font-medium text-slate-600 truncate">{item.name}</span>
                     </div>
                     <span className="font-semibold text-slate-800 font-mono flex-shrink-0">
@@ -504,9 +580,6 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                     </span>
                   </div>
                 ))}
-                {pjsPieData.length > 6 && (
-                  <div className="text-[9px] text-slate-400 text-center pt-0.5">+{pjsPieData.length - 6} más</div>
-                )}
               </div>
             </div>
           )}
@@ -542,7 +615,7 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                       dataKey="value"
                     >
                       {insurerPieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS_PALETTE[(index + 4) % COLORS_PALETTE.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip 
@@ -553,10 +626,10 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                 </ResponsiveContainer>
               </div>
               <div className="w-full sm:w-1/2 space-y-1 max-h-[140px] overflow-y-auto px-2 custom-scrollbar">
-                {insurerPieData.slice(0, 6).map((item, i) => (
+                {insurerPieData.map((item, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-0.5 text-[10px]">
                     <div className="flex items-center gap-1 overflow-hidden">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS_PALETTE[(i + 4) % COLORS_PALETTE.length] }}></span>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
                       <span className="font-medium text-slate-600 truncate">{item.name}</span>
                     </div>
                     <span className="font-semibold text-slate-800 font-mono flex-shrink-0">
@@ -564,9 +637,6 @@ export default function Dashboard({ pacientes, lookups }: DashboardProps) {
                     </span>
                   </div>
                 ))}
-                {insurerPieData.length > 6 && (
-                  <div className="text-[9px] text-slate-400 text-center pt-0.5">+{insurerPieData.length - 6} más</div>
-                )}
               </div>
             </div>
           )}

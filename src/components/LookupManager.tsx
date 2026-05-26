@@ -3,7 +3,8 @@ import { LookupItem, LookupType, LOOKUPS_CONFIG, LookupConfig, Paciente, capital
 import { Plus, Power, PowerOff, Sparkles, SlidersHorizontal, MapPin, Stethoscope, Briefcase, Hash, Trash2, AlertTriangle } from "lucide-react";
 
 interface LookupManagerProps {
-  activeType: LookupType;
+  typesInGroup: LookupType[];
+  groupTitle: string;
   lookups: Record<LookupType, LookupItem[]>;
   onSaveItem: (type: LookupType, item: LookupItem) => Promise<void>;
   onChangeStatus: (type: LookupType, id: string, newStatus: "activo" | "baja") => Promise<void>;
@@ -17,7 +18,8 @@ interface LookupManagerProps {
 }
 
 export default function LookupManager({ 
-  activeType, 
+  typesInGroup, 
+  groupTitle,
   lookups, 
   onSaveItem, 
   onChangeStatus,
@@ -27,6 +29,9 @@ export default function LookupManager({
   onClearSingleLookup
 }: LookupManagerProps) {
   
+  // Link activeTab directly to a local state from typesInGroup prop
+  const [activeTab, setActiveTab] = useState<LookupType>(typesInGroup[0]);
+
   // Create state fields
   const [newNombre, setNewNombre] = useState("");
   const [newApellido, setNewApellido] = useState("");
@@ -48,9 +53,6 @@ export default function LookupManager({
   const [clearingActive, setClearingActive] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [confirmClearActive, setConfirmClearActive] = useState(false);
-
-  // Link activeTab directly to activeType prop from App.tsx
-  const activeTab = activeType;
 
   // Read config
   const currentConfig = LOOKUPS_CONFIG[activeTab];
@@ -203,12 +205,45 @@ export default function LookupManager({
         <SlidersHorizontal className="h-6 w-6 text-indigo-600" />
         <div>
           <h2 className="text-xl font-semibold text-slate-800">
-            Parámetros Clínicos & Catálogos
+            {groupTitle}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Agregue nuevos miembros, registre locaciones o de de baja a existentes para simplificar los formularios de ingreso.
+            Gestión simplificada de parámetros en {groupTitle.toLowerCase()}. Agregue registros o de de baja para optimizar sus formularios.
           </p>
         </div>
+      </div>
+
+      {/* Inline Subtabs to switch between tables in this group */}
+      <div className="flex flex-wrap gap-1.5 mb-4 p-1 bg-slate-50 border border-slate-100 rounded-xl shrink-0">
+        {typesInGroup.map((type) => {
+          const config = LOOKUPS_CONFIG[type];
+          const isSelected = activeTab === type;
+          const count = (lookups[type] || []).filter(i => i.status === "activo").length;
+          
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => {
+                setActiveTab(type);
+                setErrorMsg("");
+                setSuccessMsg("");
+              }}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                isSelected 
+                  ? "bg-white text-indigo-700 shadow-xs border border-indigo-100/50" 
+                  : "text-slate-500 hover:text-slate-850 hover:bg-white/40"
+              }`}
+            >
+              <span>{config.pluralLabel}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                isSelected ? "bg-indigo-50 text-indigo-700 font-bold" : "bg-slate-200/50 text-slate-500"
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Active Manager Panel */}
