@@ -75,6 +75,9 @@ service cloud.firestore {
     }
 
     // Rules for supporting configurations
+    match /app_users/{id} {
+      allow read, write: if true;
+    }
     match /pjs/{id} {
       allow read, write: if true;
     }

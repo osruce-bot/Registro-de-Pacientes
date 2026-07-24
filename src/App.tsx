@@ -8,9 +8,13 @@ import {
   dbClearAllPacientesOnCloud,
   dbClearAllLookupsOnCloud,
   dbClearSingleLookupOnCloud,
-  dbDeleteLookupItem
+  dbDeleteLookupItem,
+  dbGetAppUsers,
+  dbSaveAppUser,
+  dbDeleteAppUser,
+  dbSyncLocalStorageToCloud
 } from "./dbService";
-import { Paciente, LookupItem, LookupType, LOOKUPS_CONFIG, FilterState, INITIAL_FILTERS } from "./types";
+import { Paciente, LookupItem, LookupType, LOOKUPS_CONFIG, FilterState, INITIAL_FILTERS, AppUser } from "./types";
 import { encryptText } from "./encryptUtils";
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { auth, testFirestoreConnection } from "./firebase";
@@ -19,6 +23,7 @@ import NuevoRegistro from "./components/NuevoRegistro";
 import LookupManager from "./components/LookupManager";
 import PatientsTable from "./components/PatientsTable";
 import DataImporter from "./components/DataImporter";
+import UserManager from "./components/UserManager";
 import { 
   HeartPulse, 
   Activity, 
@@ -33,6 +38,7 @@ import {
   Stethoscope,
   Map,
   Shield,
+  ShieldCheck,
   HelpCircle,
   Clock,
   AlertTriangle,
@@ -48,6 +54,7 @@ type MainTab =
   | "pacientes_grid"
   | "ingreso"
   | "importor"
+  | "admin_users"
   | "grupo_personal"
   | "grupo_sedes"
   | "grupo_coberturas"
@@ -70,6 +77,7 @@ export default function App() {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [lookups, setLookups] = useState<Record<LookupType, LookupItem[]>>({} as any);
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
@@ -78,23 +86,55 @@ export default function App() {
   const [guestMode, setGuestMode] = useState(true); // Default guest sandbox
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Custom Username/Password Authorization (mbraschi / Zafiro641)
+  // Custom Username/Password Authorization (mbraschi / registered users)
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
     return localStorage.getItem("med_auth_authorized") === "true";
   });
+  const [loggedInUsername, setLoggedInUsername] = useState<string>(() => {
+    return localStorage.getItem("med_auth_username") || (localStorage.getItem("med_auth_authorized") === "true" ? "mbraschi" : "");
+  });
+  const [loggedInUserObj, setLoggedInUserObj] = useState<AppUser | null>(null);
+
   const [loginUser, setLoginUser] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
+  // Determine if the currently logged in user is the administrator (mbraschi or admin role)
+  const isAdmin = isAuthorized && (loggedInUsername.toLowerCase() === "mbraschi" || loggedInUserObj?.rol === "admin");
+
   const handleCustomLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginUser.trim().toLowerCase() === "mbraschi" && loginPassword === "Zafiro641") {
+    const cleanUser = loginUser.trim().toLowerCase();
+
+    // 1. Check Master Admin Credentials
+    if (cleanUser === "mbraschi" && loginPassword === "Zafiro641") {
       localStorage.setItem("med_auth_authorized", "true");
+      localStorage.setItem("med_auth_username", "mbraschi");
+      setLoggedInUsername("mbraschi");
       setIsAuthorized(true);
       setLoginError("");
-    } else {
-      setLoginError("Usuario o clave incorrectos. Intente de nuevo.");
+      return;
     }
+
+    // 2. Check registered app users from Firestore
+    const matchedUser = appUsers.find(u => u.username.toLowerCase() === cleanUser);
+    if (matchedUser) {
+      if (matchedUser.status === "inactivo") {
+        setLoginError("Su usuario se encuentra inactivo. Contacte al administrador (mbraschi).");
+        return;
+      }
+      if (matchedUser.password === loginPassword) {
+        localStorage.setItem("med_auth_authorized", "true");
+        localStorage.setItem("med_auth_username", matchedUser.username);
+        setLoggedInUsername(matchedUser.username);
+        setLoggedInUserObj(matchedUser);
+        setIsAuthorized(true);
+        setLoginError("");
+        return;
+      }
+    }
+
+    setLoginError("Usuario o clave incorrectos. Intente de nuevo.");
   };
 
   // Client Cryptographic Key
@@ -104,7 +144,7 @@ export default function App() {
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Load database structures on startup
+  // Load database structures and app users on startup
   const fetchAllData = async () => {
     setSyncing(true);
     // Explicitly test connection health on initial boot as required by Firebase specification
@@ -112,12 +152,6 @@ export default function App() {
     try {
       const res = await initializeFirestoreDefaults();
       
-      // Strip any legacy "(Miembro)" suffix for clean display
-      const cleanedPacientes = res.pacientes.map(p => ({
-        ...p,
-        pjsLabel: p.pjsLabel ? p.pjsLabel.replace(/\s*\(Miembro\)/gi, "").trim() : p.pjsLabel
-      }));
-
       const cleanedLookups = { ...res.lookups };
       if (cleanedLookups.pjs) {
         cleanedLookups.pjs = cleanedLookups.pjs.map(item => ({
@@ -127,13 +161,147 @@ export default function App() {
         }));
       }
 
+      // Reconcile patient catalog labels directly with Firestore live lookups
+      const cleanedPacientes = res.pacientes.map(p => {
+        let pjsLabel = p.pjsLabel ? p.pjsLabel.replace(/\s*\(Miembro\)/gi, "").trim() : p.pjsLabel;
+        if (p.pjsId && cleanedLookups.pjs) {
+          const found = cleanedLookups.pjs.find(item => item.id === p.pjsId);
+          if (found) pjsLabel = `${found.nombre} ${found.apellido || ""}`.trim();
+        }
+
+        let aseguradoraLabel = p.aseguradoraLabel || "";
+        if (p.aseguradoraId && cleanedLookups.aseguradoras) {
+          const found = cleanedLookups.aseguradoras.find(a => a.id === p.aseguradoraId);
+          if (found) aseguradoraLabel = found.nombre;
+        }
+        if (aseguradoraLabel && cleanedLookups.aseguradoras) {
+          const matchedByExactName = cleanedLookups.aseguradoras.find(a => a.nombre.toLowerCase().trim() === aseguradoraLabel.toLowerCase().trim());
+          if (matchedByExactName) {
+            aseguradoraLabel = matchedByExactName.nombre;
+          }
+        }
+
+        let ciudadLabel = p.ciudadLabel || "";
+        if (p.ciudadId && cleanedLookups.ciudades) {
+          const found = cleanedLookups.ciudades.find(c => c.id === p.ciudadId);
+          if (found) ciudadLabel = found.nombre;
+        }
+
+        let medicoLabel = p.medicoLabel || "";
+        if (p.medicoId && cleanedLookups.medicos) {
+          const found = cleanedLookups.medicos.find(m => m.id === p.medicoId);
+          if (found) medicoLabel = `${found.nombre} ${found.apellido || ""}`.trim();
+        }
+
+        let institucionLabel = p.institucionLabel || "";
+        if (p.institucionId && cleanedLookups.instituciones) {
+          const found = cleanedLookups.instituciones.find(i => i.id === p.institucionId);
+          if (found) institucionLabel = found.nombre;
+        }
+
+        let dispensacionLabel = p.dispensacionLabel || "";
+        if (p.dispensacionId && cleanedLookups.dispensaciones) {
+          const found = cleanedLookups.dispensaciones.find(d => d.id === p.dispensacionId);
+          if (found) dispensacionLabel = found.nombre;
+        }
+
+        let distribuidorLabel = p.distribuidorLabel || "";
+        if (p.distribuidorId && cleanedLookups.distribuidores) {
+          const found = cleanedLookups.distribuidores.find(d => d.id === p.distribuidorId);
+          if (found) distribuidorLabel = found.nombre;
+        }
+
+        let indicacionLabel = p.indicacionLabel || "";
+        if (p.indicacionId && cleanedLookups.indicaciones) {
+          const found = cleanedLookups.indicaciones.find(i => i.id === p.indicacionId);
+          if (found) indicacionLabel = found.nombre;
+        }
+
+        let dosisLabel = p.dosisLabel || "";
+        if (p.dosisId && cleanedLookups.dosis) {
+          const found = cleanedLookups.dosis.find(d => d.id === p.dosisId);
+          if (found) dosisLabel = found.nombre;
+        }
+
+        return {
+          ...p,
+          pjsLabel,
+          aseguradoraLabel,
+          ciudadLabel,
+          medicoLabel,
+          institucionLabel,
+          dispensacionLabel,
+          distribuidorLabel,
+          indicacionLabel,
+          dosisLabel
+        };
+      });
+
       setPacientes(cleanedPacientes);
       setLookups(cleanedLookups);
+
+      // Load app user credentials
+      const users = await dbGetAppUsers();
+      setAppUsers(users);
+      if (loggedInUsername) {
+        const found = users.find(u => u.username.toLowerCase() === loggedInUsername.toLowerCase());
+        if (found) {
+          setLoggedInUserObj(found);
+        }
+      }
     } catch (e) {
       console.error("Critical loader issue: ", e);
     } finally {
       setLoading(false);
       setSyncing(false);
+    }
+  };
+
+  const handleForceCloudRefresh = async () => {
+    try {
+      setSyncing(true);
+      console.log("Syncing local data to Cloud Firestore, then refreshing live server data...");
+      await dbSyncLocalStorageToCloud();
+      await fetchAllData();
+    } catch (err) {
+      console.error("Force sync failed", err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const fetchAppUsers = async () => {
+    try {
+      const users = await dbGetAppUsers();
+      setAppUsers(users);
+    } catch (e) {
+      console.error("Error refreshing users:", e);
+    }
+  };
+
+  const handleSaveAppUser = async (userToSave: AppUser) => {
+    try {
+      const saved = await dbSaveAppUser(userToSave);
+      setAppUsers(prev => {
+        const exists = prev.some(u => u.id === saved.id || u.username.toLowerCase() === saved.username.toLowerCase());
+        if (exists) {
+          return prev.map(u => u.id === saved.id || u.username.toLowerCase() === saved.username.toLowerCase() ? saved : u);
+        }
+        return [...prev, saved];
+      });
+    } catch (e) {
+      console.error("Error saving user:", e);
+      throw e;
+    }
+  };
+
+  const handleDeleteAppUser = async (id: string, username?: string) => {
+    try {
+      await dbDeleteAppUser(id, username);
+      setAppUsers(prev => prev.filter(u => u.id !== id && (!username || u.username.toLowerCase() !== username.toLowerCase())));
+    } catch (e) {
+      console.error("Error deleting user:", e);
+      throw e;
     }
   };
 
@@ -170,7 +338,11 @@ export default function App() {
   const handleLogout = async () => {
     await signOut(auth);
     localStorage.removeItem("med_auth_authorized");
+    localStorage.removeItem("med_auth_username");
     setIsAuthorized(false);
+    setLoggedInUsername("");
+    setLoggedInUserObj(null);
+    setActiveTab("dashboard");
     setGuestMode(true);
     await fetchAllData();
   };
@@ -378,6 +550,7 @@ export default function App() {
         { id: "dashboard", label: "Dashboard Diagnóstico", icon: Activity },
         { id: "pacientes_grid", label: "Tabla de Pacientes", icon: Layers },
         { id: "ingreso", label: "Ingreso Nuevo Registro", icon: UserPlus },
+        ...(isAdmin ? [{ id: "admin_users", label: "Administrador", icon: ShieldCheck, highlight: true }] : [])
       ]
     },
     {
@@ -399,7 +572,7 @@ export default function App() {
     return "Consola Médica";
   };
 
-  if (!isAuthorized && !currentUser) {
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen w-screen bg-[#070b13] text-slate-100 flex items-center justify-center p-4 font-sans relative overflow-hidden" id="login-screen-root">
         {/* Abstract futuristic medical ambient elements */}
@@ -446,7 +619,7 @@ export default function App() {
                 required
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
-                placeholder="mbraschi"
+                placeholder="Ingrese su usuario..."
                 className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl py-2.5 px-3.5 text-xs focus:outline-none transition-all placeholder:text-slate-600 text-white"
                 id="login-username-input"
               />
@@ -479,34 +652,6 @@ export default function App() {
               Ingresar a la Consola
             </button>
           </form>
-
-          {/* Separation Divider */}
-          <div className="w-full flex items-center justify-between gap-3 my-5">
-            <span className="h-px bg-slate-800 flex-1"></span>
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">O también</span>
-            <span className="h-px bg-slate-800 flex-1"></span>
-          </div>
-
-          <button
-            onClick={handleGoogleLogin}
-            disabled={authLoading}
-            className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-            id="google-alternate-login-button"
-          >
-            {authLoading ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-500" />
-            ) : (
-              <>
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                <span>Autenticar con Google</span>
-              </>
-            )}
-          </button>
 
           <p className="text-[9px] text-center text-slate-500 leading-normal mt-6 w-full border-t border-slate-900/40 pt-4 font-sans">
             Acceso restringido a personal médico autorizado. Toda actividad es supervisada por las directivas de AstraZeneca.
@@ -648,15 +793,21 @@ export default function App() {
             )}
             <div className="text-xs min-w-0 font-sans">
               <p className="font-bold text-slate-100 truncate">
-                {currentUser ? (currentUser.displayName || "Médico Clínico") : isAuthorized ? "mbraschi" : "Dr. Juan Delgado"}
+                {currentUser 
+                  ? (currentUser.displayName || "Médico Clínico") 
+                  : loggedInUserObj 
+                    ? loggedInUserObj.nombreCompleto 
+                    : loggedInUsername 
+                      ? loggedInUsername 
+                      : "mbraschi"}
               </p>
               <p className="text-slate-400 text-[10px] truncate">
-                {currentUser ? "Administrador de Registros" : isAuthorized ? "Administrador de Registros" : "Médico Residente"}
+                {isAdmin ? "Administrador de Registros" : "Usuario Autorizado"}
               </p>
             </div>
           </div>
           
-          {(currentUser || isAuthorized) ? (
+          {isAuthorized && (
             <button 
               onClick={handleLogout}
               className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded text-xs transition-colors cursor-pointer text-center font-medium flex items-center justify-center gap-1.5"
@@ -664,17 +815,6 @@ export default function App() {
               <LogOut className="h-3.5 w-3.5" />
               Cerrar Sesión
             </button>
-          ) : (
-            <div className="space-y-1.5">
-              <button 
-                onClick={handleGoogleLogin}
-                className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
-              >
-                <LogIn className="h-3.5 w-3.5 text-white" />
-                Acceso Médico Google
-              </button>
-              <div className="text-center text-[9px] text-slate-500 font-sans">Invitado temporal habilitado</div>
-            </div>
           )}
         </div>
       </aside>
@@ -729,10 +869,21 @@ export default function App() {
                 <span className="hidden sm:inline">Guardando...</span>
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100/60 px-2.5 py-1 rounded-lg font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                <span>Firebase Online</span>
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleForceCloudRefresh}
+                  disabled={syncing || loading}
+                  title="Sincronizar directamente con la base de datos Firestore Cloud"
+                  className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg font-medium transition cursor-pointer"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">Refrescar Servidor</span>
+                </button>
+                <span className="flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100/60 px-2.5 py-1 rounded-lg font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                  <span>Firebase Online</span>
+                </span>
+              </div>
             )}
           </div>
         </header>
@@ -794,6 +945,15 @@ export default function App() {
                   onAddPaciente={handleAddPaciente}
                   onUpdatePaciente={handleUpdatePaciente}
                   onSaveLookup={handleSaveLookup}
+                />
+              )}
+
+              {activeTab === "admin_users" && isAdmin && (
+                <UserManager
+                  users={appUsers}
+                  onSaveUser={handleSaveAppUser}
+                  onDeleteUser={handleDeleteAppUser}
+                  onRefreshUsers={fetchAppUsers}
                 />
               )}
 

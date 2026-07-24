@@ -142,30 +142,54 @@ export function calculateMonthsElapsed(fechaStr?: string, createdAt?: string): s
     let year = 0;
     let month = 0;
     let day = 0;
+
+    const trimmed = dateStr.trim();
     
-    // Check if it's in DD/MM/AAAA format first
-    const dmyMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-    if (dmyMatch) {
-      day = parseInt(dmyMatch[1], 10);
-      month = parseInt(dmyMatch[2], 10) - 1;
-      year = parseInt(dmyMatch[3], 10);
+    // 1. Check for Excel serial number (e.g. 45412)
+    const num = Number(trimmed);
+    if (!isNaN(num) && num > 30000 && num < 60000) {
+      const date = new Date(Math.round((num - 25569) * 86400) * 1000);
+      if (!isNaN(date.getTime())) {
+        day = date.getDate();
+        month = date.getMonth();
+        year = date.getFullYear();
+      }
     } else {
-      // Expect YYYY-MM-DD
-      const ymdMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (ymdMatch) {
-        year = parseInt(ymdMatch[1], 10);
-        month = parseInt(ymdMatch[2], 10) - 1;
-        day = parseInt(ymdMatch[3], 10);
+      // 2. Check for DD/MM/YYYY or D/M/YYYY or DD-MM-YYYY or DD.MM.YYYY
+      const dmyMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+      if (dmyMatch) {
+        day = parseInt(dmyMatch[1], 10);
+        month = parseInt(dmyMatch[2], 10) - 1;
+        year = parseInt(dmyMatch[3], 10);
       } else {
-        // Fallback standard parsing
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return "0";
-        year = d.getFullYear();
-        month = d.getMonth();
-        day = d.getDate();
+        // 3. Check for DD/MM/YY
+        const dmy2Match = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);
+        if (dmy2Match) {
+          day = parseInt(dmy2Match[1], 10);
+          month = parseInt(dmy2Match[2], 10) - 1;
+          const yy = parseInt(dmy2Match[3], 10);
+          year = yy > 50 ? 1900 + yy : 2000 + yy;
+        } else {
+          // 4. Check for YYYY-MM-DD or YYYY/MM/DD
+          const ymdMatch = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+          if (ymdMatch) {
+            year = parseInt(ymdMatch[1], 10);
+            month = parseInt(ymdMatch[2], 10) - 1;
+            day = parseInt(ymdMatch[3], 10);
+          } else {
+            // Fallback standard parsing
+            const d = new Date(trimmed);
+            if (isNaN(d.getTime())) return "0";
+            year = d.getFullYear();
+            month = d.getMonth();
+            day = d.getDate();
+          }
+        }
       }
     }
     
+    if (!year) return "0";
+
     const ingressDate = new Date(year, month, day);
     const today = new Date();
     

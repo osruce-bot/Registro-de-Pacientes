@@ -11,12 +11,8 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with robust local disk caching (IndexedDB) for offline/poor connectivity resilience
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-}, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore with live server connection (no aggressive IndexedDB persistence to avoid stale browser caching across sessions)
+export const db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
 
 export const auth = getAuth();
 

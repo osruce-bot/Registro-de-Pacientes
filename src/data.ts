@@ -18,7 +18,7 @@ export const DEFAULT_PJS = [
 ];
 
 export const DEFAULT_ASEGURADORAS = [
-  "EsSalud", "Rímac Seguros", "Pacífico Seguros", "Mapfre", "La Positiva", "Susalud"
+  "EsSalud", "Rímac Seguros", "Pacífico Seguros", "Mapfre", "La Positiva", "Susalud", "SIS"
 ];
 
 export const DEFAULT_INSTITUCIONES = [

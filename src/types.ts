@@ -1,3 +1,14 @@
+export interface AppUser {
+  id: string; // Document ID (e.g., usr_mbraschi or usr_123)
+  username: string; // Unique login username (lowercase)
+  password: string; // Password
+  nombreCompleto: string; // Full display name
+  rol: "admin" | "usuario"; // Admin (mbraschi) vs standard User
+  status: "activo" | "inactivo";
+  createdAt?: any;
+  updatedAt?: any;
+}
+
 export interface Paciente {
   id: string; // Patient Document ID
   nombre: string;
