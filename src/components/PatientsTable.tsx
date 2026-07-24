@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { Paciente, LookupItem, LookupType } from "../types";
+import { Paciente, LookupItem, LookupType, FilterState, getFilteredPacientes } from "../types";
+import CompactFilters from "./CompactFilters";
 import { decryptText, encryptText } from "../encryptUtils";
 import { 
   Search, 
@@ -186,6 +187,8 @@ export function calculateMonthsElapsed(fechaStr?: string, createdAt?: string): s
 interface PatientsTableProps {
   pacientes: Paciente[];
   lookups: Record<LookupType, LookupItem[]>;
+  filters: FilterState;
+  onFilterChange: (filters: FilterState) => void;
   onUpdatePaciente: (paciente: Paciente) => Promise<boolean | void>;
   onDeletePaciente: (id: string) => Promise<void>;
   onClearAllPacientes: () => Promise<void>;
@@ -197,6 +200,8 @@ interface PatientsTableProps {
 export default function PatientsTable({
   pacientes,
   lookups,
+  filters,
+  onFilterChange,
   onUpdatePaciente,
   onDeletePaciente,
   onClearAllPacientes,
@@ -204,19 +209,6 @@ export default function PatientsTable({
   onSetEncryptionKey,
   onNavigateToTab
 }: PatientsTableProps) {
-  // Filters & Searching state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSector, setSelectedSector] = useState<"Todos" | "Público" | "Privado">("Todos");
-  const [selectedPjs, setSelectedPjs] = useState("Todos");
-  const [selectedCiudad, setSelectedCiudad] = useState("Todos");
-  const [selectedMedico, setSelectedMedico] = useState("Todos");
-  const [selectedAseguradora, setSelectedAseguradora] = useState("Todos");
-  const [selectedInstitucion, setSelectedInstitucion] = useState("Todos");
-  const [selectedDispensacion, setSelectedDispensacion] = useState("Todos");
-  const [selectedDistribuidor, setSelectedDistribuidor] = useState("Todos");
-  const [selectedIndicacion, setSelectedIndicacion] = useState("Todos");
-  const [selectedDosis, setSelectedDosis] = useState("Todos");
-
   // Edit modal state
   const [editingPaciente, setEditingPaciente] = useState<Paciente | null>(null);
   const [tempPjsId, setTempPjsId] = useState("");
@@ -292,122 +284,29 @@ export default function PatientsTable({
 
   // Apply search & filters
   const filteredPacientes = useMemo(() => {
-    return pacientes.filter((p) => {
-      // 1. Search term match
-      const query = searchTerm.toLowerCase().trim();
-      const matchSearch = 
-        p.id.toLowerCase().includes(query) ||
-        p.nombre.toLowerCase().includes(query) ||
-        p.apellido.toLowerCase().includes(query) ||
-        (p.ciudadLabel && p.ciudadLabel.toLowerCase().includes(query)) ||
-        (p.medicoLabel && p.medicoLabel.toLowerCase().includes(query));
-
-      // 2. Sector match
-      const matchSector = selectedSector === "Todos" || p.sector === selectedSector;
-
-      // 3. Pjs match
-      const matchPjs = selectedPjs === "Todos" || p.pjsId === selectedPjs;
-
-      // 4. Ciudad match
-      const matchCiudad = selectedCiudad === "Todos" || p.ciudadId === selectedCiudad;
-
-      // 5. Medico match
-      const matchMedico = selectedMedico === "Todos" || p.medicoId === selectedMedico;
-
-      // 6. Insurance match
-      const matchAseguradora = selectedAseguradora === "Todos" || p.aseguradoraId === selectedAseguradora;
-
-      // 7. Institucion match
-      const matchInstitucion = selectedInstitucion === "Todos" || p.institucionId === selectedInstitucion;
-
-      // 8. Dispensacion match
-      const matchDispensacion = selectedDispensacion === "Todos" || p.dispensacionId === selectedDispensacion;
-
-      // 9. Distribuidor match
-      const matchDistribuidor = selectedDistribuidor === "Todos" || p.distribuidorId === selectedDistribuidor;
-
-      // 10. Indicacion match
-      const matchIndicacion = selectedIndicacion === "Todos" || p.indicacionId === selectedIndicacion;
-
-      // 11. Dosis match
-      const matchDosis = selectedDosis === "Todos" || p.dosisId === selectedDosis;
-
-      return (
-        matchSearch &&
-        matchSector &&
-        matchPjs &&
-        matchCiudad &&
-        matchMedico &&
-        matchAseguradora &&
-        matchInstitucion &&
-        matchDispensacion &&
-        matchDistribuidor &&
-        matchIndicacion &&
-        matchDosis
-      );
-    }).sort((a, b) => {
+    return getFilteredPacientes(pacientes, filters).sort((a, b) => {
       const timeA = parseDateToTime(a.fechaIngreso, a.createdAt);
       const timeB = parseDateToTime(b.fechaIngreso, b.createdAt);
       return timeB - timeA;
     });
-  }, [
-    pacientes,
-    searchTerm,
-    selectedSector,
-    selectedPjs,
-    selectedCiudad,
-    selectedMedico,
-    selectedAseguradora,
-    selectedInstitucion,
-    selectedDispensacion,
-    selectedDistribuidor,
-    selectedIndicacion,
-    selectedDosis
-  ]);
+  }, [pacientes, filters]);
 
   // Check if any filter is active
   const isAnyFilterActive = useMemo(() => {
     return (
-      searchTerm.trim() !== "" ||
-      selectedSector !== "Todos" ||
-      selectedPjs !== "Todos" ||
-      selectedCiudad !== "Todos" ||
-      selectedMedico !== "Todos" ||
-      selectedAseguradora !== "Todos" ||
-      selectedInstitucion !== "Todos" ||
-      selectedDispensacion !== "Todos" ||
-      selectedDistribuidor !== "Todos" ||
-      selectedIndicacion !== "Todos" ||
-      selectedDosis !== "Todos"
+      filters.searchTerm.trim() !== "" ||
+      filters.selectedSector !== "Todos" ||
+      filters.selectedPjs !== "Todos" ||
+      filters.selectedCiudad !== "Todos" ||
+      filters.selectedMedico !== "Todos" ||
+      filters.selectedAseguradora !== "Todos" ||
+      filters.selectedInstitucion !== "Todos" ||
+      filters.selectedDispensacion !== "Todos" ||
+      filters.selectedDistribuidor !== "Todos" ||
+      filters.selectedIndicacion !== "Todos" ||
+      filters.selectedDosis !== "Todos"
     );
-  }, [
-    searchTerm,
-    selectedSector,
-    selectedPjs,
-    selectedCiudad,
-    selectedMedico,
-    selectedAseguradora,
-    selectedInstitucion,
-    selectedDispensacion,
-    selectedDistribuidor,
-    selectedIndicacion,
-    selectedDosis
-  ]);
-
-  // Clean all filters
-  const handleClearFilters = () => {
-    setSearchTerm("");
-    setSelectedSector("Todos");
-    setSelectedPjs("Todos");
-    setSelectedCiudad("Todos");
-    setSelectedMedico("Todos");
-    setSelectedAseguradora("Todos");
-    setSelectedInstitucion("Todos");
-    setSelectedDispensacion("Todos");
-    setSelectedDistribuidor("Todos");
-    setSelectedIndicacion("Todos");
-    setSelectedDosis("Todos");
-  };
+  }, [filters]);
 
   // Initiate edit flow
   const handleOpenEdit = (p: Paciente) => {
@@ -477,150 +376,266 @@ export default function PatientsTable({
   };
 
   /**
-   * PDF A4 Report Generation
+   * Compact, Lightweight Porter A4 Executive Summary Report generator
    */
   const handleGeneratePDF = () => {
     const doc = new jsPDF({
-      orientation: "landscape",
+      orientation: "portrait",
       unit: "mm",
-      format: "a4" // 297 x 210 mm
+      format: "a4" // 210 x 297 mm
     });
 
-    // Color definitions
-    const PRIMARY_COLOR = "#0f172a"; // Deep Slate
-    const ACCENT_COLOR = "#eeb709";  // AstraZeneca Yellow
-    const TEXT_BLACK = "#1e293b";    // Gray 800
-    const TEXT_LIGHT = "#64748b";    // Gray 500
+    const total = filteredPacientes.length;
+    const activosList = filteredPacientes.filter(p => p.status !== "inactive" && (!p.fechaBaja || p.fechaBaja.trim() === "" || p.fechaBaja.trim().toLowerCase() === "no tiene"));
+    const activos = activosList.length;
+    const bajas = total - activos;
+    const rateActivos = total > 0 ? Math.round((activos / total) * 100) : 0;
+    const rateBajas = total > 0 ? Math.round((bajas / total) * 100) : 0;
 
-    // Coordinates configuration for columns with MESES included
-    const COLUMNS = [
-      { label: "PJS", x: 12.5, width: 28 },
-      { label: "CIUDAD / SEDE", x: 40.5, width: 23 },
-      { label: "MÉDICO", x: 63.5, width: 24 },
-      { label: "ASEGURADORA", x: 87.5, width: 23 },
-      { label: "SECTOR", x: 110.5, width: 14 },
-      { label: "INSTITUCIÓN", x: 124.5, width: 23 },
-      { label: "DISPENSACIÓN", x: 147.5, width: 23 },
-      { label: "DISTRIBUIDOR", x: 170.5, width: 23 },
-      { label: "INDICACIÓN", x: 193.5, width: 23 },
-      { label: "DOSIS", x: 216.5, width: 15 },
-      { label: "LÍNEA TTO", x: 231.5, width: 17 },
-      { label: "FECHA INGRESO", x: 248.5, width: 21 },
-      { label: "MESES", x: 269.5, width: 15 }
-    ];
+    const publicoCount = activosList.filter(p => p.sector === "Público").length;
+    const privadoCount = activosList.filter(p => p.sector === "Privado").length;
+    const pubRate = activos > 0 ? Math.round((publicoCount / activos) * 100) : 0;
+    const privRate = activos > 0 ? Math.round((privadoCount / activos) * 100) : 0;
 
-    // Header section
-    doc.setFillColor(F_HEX(PRIMARY_COLOR));
-    doc.rect(0, 0, 297, 28, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor("#ffffff");
-    doc.text("REGISTRO DE PACIENTES - ASTRAZENECA", 14, 12);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("Reporte Consolidado de Actividad", 14, 19);
-    doc.text(`Fecha de emisión: ${new Date().toLocaleDateString()}`, 242, 12);
-    doc.text("Uso Oficial Confidencial", 242, 19);
-
-    // Decorative band
-    doc.setFillColor(F_HEX(ACCENT_COLOR));
-    doc.rect(0, 28, 297, 2, "F");
-
-    // Filter diagnostics summary
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(PRIMARY_COLOR);
-    doc.text("CRITERIOS DE FILTRO ACTIVO", 12.5, 40);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(TEXT_LIGHT);
-    doc.text(`Sec: ${selectedSector} | PJS: ${selectedPjs === "Todos" ? "Todos" : getSelectedLabel("pjs", selectedPjs).slice(0, 25)} | Ciud: ${selectedCiudad === "Todos" ? "Todas" : getSelectedLabel("ciudades", selectedCiudad).slice(0, 25)}`, 12.5, 46);
-    doc.text(`Méd: ${selectedMedico === "Todos" ? "Todos" : getSelectedLabel("medicos", selectedMedico).slice(0, 25)} | Aseg: ${selectedAseguradora === "Todos" ? "Todas" : getSelectedLabel("aseguradoras", selectedAseguradora).slice(0, 25)}`, 12.5, 51);
-    doc.text(`Registros calificados: ${filteredPacientes.length} pacientes (de ${pacientes.length} total)`, 212, 51);
-
-    // Divider
-    doc.setDrawColor("#e2e8f0");
-    doc.line(12.5, 56, 284.5, 56);
-
-    // Patients Grid Table Header
-    doc.setFillColor("#f1f5f9");
-    doc.rect(12.5, 62, 272, 7, "F");
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(PRIMARY_COLOR);
-    COLUMNS.forEach(col => {
-      doc.text(col.label, col.x + 1.5, 66.5);
-    });
-
-    let currentY = 74;
-
-    // Print records loop
-    filteredPacientes.forEach((p, idx) => {
-      // Check page break boundary (Landscape max height is 210mm, so 185mm leaves adequate margin)
-      if (currentY > 185) {
-        doc.addPage();
-        // Repaint mini header on page overflow
-        doc.setFillColor(F_HEX(PRIMARY_COLOR));
-        doc.rect(0, 0, 297, 15, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor("#ffffff");
-        doc.text("REGISTRO DE PACIENTES - REPORTE DE ACTIVIDAD (CONTINUACIÓN)", 12.5, 10);
-
-        // Repaint table column headers on subsequent pages
-        doc.setFillColor("#f1f5f9");
-        doc.rect(12.5, 22, 272, 7, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
-        doc.setTextColor(PRIMARY_COLOR);
-        COLUMNS.forEach(col => {
-          doc.text(col.label, col.x + 1.5, 26.5);
-        });
-
-        currentY = 34;
-      }
-
-      // Draw light back zebra
-      if (idx % 2 === 1) {
-        doc.setFillColor("#f8fafc");
-        doc.rect(12.5, currentY - 5, 272, 7, "F");
-      }
-
-      // Collect cells matching precise headers list with MESES included
-      const rowValues = [
-        (p.pjsLabel || "Particular").slice(0, 18),
-        (p.ciudadLabel || "—").slice(0, 15),
-        (p.medicoLabel || "—").slice(0, 18),
-        (p.aseguradoraLabel || "—").slice(0, 15),
-        p.sector || "—",
-        (p.institucionLabel || "—").slice(0, 15),
-        (p.dispensacionLabel || "—").slice(0, 15),
-        (p.distribuidorLabel || "—").slice(0, 15),
-        (p.indicacionLabel || "—").slice(0, 18),
-        (p.dosisLabel || "—").slice(0, 14),
-        (p.lineaTratamiento || "1era Línea").slice(0, 12),
-        (p.fechaIngreso ? formatDateToDMY(p.fechaIngreso) : "—"),
-        calculateMonthsElapsed(p.fechaIngreso, p.createdAt)
-      ];
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.setTextColor(TEXT_BLACK);
-
-      rowValues.forEach((val, colIdx) => {
-        const col = COLUMNS[colIdx];
-        doc.text(val, col.x + 1.5, currentY);
+    // Helper to extract top distributions
+    const getTopItems = (fieldId: keyof Paciente, type: LookupType, max = 5) => {
+      const counts: Record<string, number> = {};
+      const lookupList = lookups[type] || [];
+      
+      activosList.forEach(p => {
+        const val = p[fieldId] as string;
+        if (val && val !== "Todos") {
+          counts[val] = (counts[val] || 0) + 1;
+        }
       });
 
-      currentY += 7.5;
+      return Object.entries(counts)
+        .map(([id, count]) => {
+          const lItem = lookupList.find(item => item.id === id);
+          const name = lItem ? (lItem.apellido ? `${lItem.nombre} ${lItem.apellido}` : lItem.nombre) : id;
+          return { name, count };
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, max);
+    };
+
+    const topCiudades = getTopItems("ciudadId", "ciudades", 10);
+    const topMedicos = getTopItems("medicoId", "medicos", 10);
+    const topAseguradoras = getTopItems("aseguradoraId", "aseguradoras", 10);
+    const topIndicaciones = getTopItems("indicacionId", "indicaciones", 10);
+    const topCanales = getTopItems("distribuidorId", "distribuidores", 5);
+
+    // Helpers to draw tables & cards
+    const PRIMARY_COLOR = [15, 23, 42]; // Slate 900
+    const ACCENT_COLOR = [238, 183, 9]; // AstraZeneca Yellow
+
+    // 1. Header Banner
+    doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+    doc.rect(12, 10, 186, 20, "F");
+
+    doc.setFillColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
+    doc.rect(12, 30, 186, 1.2, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("REPORTE EJECUTIVO - REGISTRO DE PACIENTES", 17, 17);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.text("AstraZeneca Perú — Medicamentos de Alta Especialidad", 17, 23);
+
+    doc.setFontSize(7);
+    doc.text(`Ficha: ${new Date().toLocaleDateString()}`, 160, 17);
+    doc.text("Página 1 de 1 (Resumen)", 160, 23);
+
+    // 2. Filter Summary Card
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(12, 34, 186, 11, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text("FILTROS ACTIVOS DE SELECCIÓN:", 16, 38);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    const pjsName = filters.selectedPjs === "Todos" ? "Todos" : getSelectedLabel("pjs", filters.selectedPjs);
+    const ciudadName = filters.selectedCiudad === "Todos" ? "Todas" : getSelectedLabel("ciudades", filters.selectedCiudad);
+    const medicoName = filters.selectedMedico === "Todos" ? "Todos" : getSelectedLabel("medicos", filters.selectedMedico);
+    const aseguradoraName = filters.selectedAseguradora === "Todos" ? "Todas" : getSelectedLabel("aseguradoras", filters.selectedAseguradora);
+
+    doc.text(`Sector: ${filters.selectedSector}  |  PJS: ${pjsName.slice(0, 32)}  |  Ciudad: ${ciudadName.slice(0, 32)}`, 16, 42);
+    doc.text(`Médico: ${medicoName.slice(0, 35)}  |  Aseguradora: ${aseguradoraName.slice(0, 35)}`, 110, 42);
+
+    // 3. KPI Cards Group
+    const cards = [
+      { title: "PACIENTES ACTIVOS", value: `${activos}`, pct: `${rateActivos}%`, desc: "En tratamiento actual", bg: [236, 253, 245], border: [16, 185, 129], text: [6, 95, 70] },
+      { title: "RETIRADOS / BAJAS", value: `${bajas}`, pct: `${rateBajas}%`, desc: "Suspensiones registradas", bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
+      { title: "TOTAL REGISTRADOS", value: `${total}`, pct: "100%", desc: "Población total calificada", bg: [248, 250, 252], border: [203, 213, 225], text: [15, 23, 42] }
+    ];
+
+    cards.forEach((card, idx) => {
+      const cardX = 12 + idx * 63;
+      const cardY = 48;
+      const cardW = 60;
+      const cardH = 15;
+
+      doc.setFillColor(card.bg[0], card.bg[1], card.bg[2]);
+      doc.setDrawColor(card.border[0], card.border[1], card.border[2]);
+      doc.rect(cardX, cardY, cardW, cardH, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6);
+      doc.setTextColor(100, 116, 139);
+      doc.text(card.title, cardX + 4, cardY + 4);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(card.text[0], card.text[1], card.text[2]);
+      doc.text(card.value, cardX + 4, cardY + 9);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.text(card.pct, cardX + cardW - 12, cardY + 9);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(card.desc, cardX + 4, cardY + 13);
     });
 
-    // Save final report
-    doc.save(`Reporte_Pacientes_A4_${new Date().toISOString().split("T")[0]}.pdf`);
+    // 4. Sector & Linel Treatment Row
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(12, 66, 186, 10, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6);
+    doc.setTextColor(15, 23, 42);
+    doc.text("DISTRIBUCIÓN OPERATIVA DE AFILIACIÓN Y LÍNEAS DE TRATAMIENTO:", 16, 70);
+
+    const l1 = activosList.filter(p => !p.lineaTratamiento || p.lineaTratamiento.toLowerCase().includes("1")).length;
+    const l2 = activosList.filter(p => p.lineaTratamiento && p.lineaTratamiento.toLowerCase().includes("2")).length;
+    const l3 = activosList.filter(p => p.lineaTratamiento && p.lineaTratamiento.toLowerCase().includes("3")).length;
+    const lOthers = activos - l1 - l2 - l3;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Sector Público: ${publicoCount} (${pubRate}%)  |  Privado: ${privadoCount} (${privRate}%)`, 16, 74);
+    doc.text(`Líneas -> 1ª Línea: ${l1} (${activos > 0 ? Math.round((l1/activos)*100) : 0}%)  |  2ª Línea: ${l2} (${activos > 0 ? Math.round((l2/activos)*100) : 0}%)  |  Otras/Subsiguientes: ${lOthers}`, 110, 74);
+
+    // Helpers to draw tables
+    const drawTable = (x: number, y: number, w: number, title: string, items: { name: string, count: number }[], labelHeaders: [string, string]) => {
+      // Header item
+      doc.setFillColor(15, 23, 42);
+      doc.rect(x, y, w, 4.5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(title, x + 3, y + 3.2);
+
+      // Subheaders table
+      doc.setFillColor(241, 245, 249);
+      doc.rect(x, y + 4.5, w, 4, "F");
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(5.5);
+      doc.text(labelHeaders[0], x + 3, y + 7.5);
+      doc.text(labelHeaders[1], x + w - 16, y + 7.5);
+
+      let rowY = y + 8.5;
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6);
+
+      for (let i = 0; i < 10; i++) {
+        const item = items[i];
+        if (i % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(x, rowY, w, 3.5, "F");
+        }
+        
+        doc.setDrawColor(241, 245, 249);
+        doc.line(x, rowY + 3.5, x + w, rowY + 3.5);
+
+        const nameLabel = item ? item.name : "—";
+        const countLabel = item ? `${item.count} pac.` : "—";
+
+        doc.text(nameLabel.slice(0, 32), x + 3, rowY + 2.5);
+        doc.text(countLabel, x + w - 16, rowY + 2.5);
+        rowY += 3.5;
+      }
+    };
+
+    // 5. Draw Demographics Row 1 (Cities & Insurers)
+    drawTable(12, 79, 91, "TOP 10 SEDES / CIUDADES", topCiudades, ["CIUDAD / SEDE", "PACIENTES"]);
+    drawTable(107, 79, 91, "TOP 10 COBERTURA DE ASEGURADORAS", topAseguradoras, ["ASEGURADORA S.A.", "POBLACIÓN"]);
+
+    // 6. Draw Demographics Row 2 (Doctors & Indications)
+    drawTable(12, 126, 91, "TOP 10 MÉDICOS TRATANTES", topMedicos, ["ESPECIALISTA", "SOPORTE"]);
+    drawTable(107, 126, 91, "TOP 10 INDICACIONES CLÍNICAS", topIndicaciones, ["DIAGNÓSTICO", "CASOS"]);
+
+    // 7. Channels & Distribution details
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(12, 173, 186, 11, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6);
+    doc.setTextColor(15, 23, 42);
+    doc.text("DETALLE COOPERATIVO DE CANALES Y DISTRIBUIDORES:", 16, 177);
+
+    const dispensacionesCounts = getTopItems("dispensacionId", "dispensaciones", 3);
+    const dispLabel = dispensacionesCounts.map(d => `${d.name}: ${d.count}`).join("  |  ");
+    const distLabel = topCanales.slice(0, 3).map(d => `${d.name}: ${d.count}`).join("  |  ");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Canales de Dispensación Comunes:  ${dispLabel || "No registrados"}`, 16, 181);
+    doc.text(`Distribuidores Clave de Abastecimiento:  ${distLabel || "No registrados" }`, 110, 181);
+
+    // 8. Conclusions Narrative paragraphs
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(15, 23, 42);
+    doc.text("CONCLUSIÓN DEL DIAGNÓSTICO DE LA POBLACIÓN:", 12, 189);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(51, 65, 85);
+    
+    const conclusions = [
+      `• La base de datos contiene un total consolidado de ${total} registros de pacientes evaluados según filtros activos de selección.`,
+      `• Actualmente, la tasa de activos asciende al ${rateActivos}% de la población total consultada, consolidando el sector público como el mayor canal`,
+      `  de cobertura con un ${pubRate}% de concentración de mercado activo versus el ${privRate}% cubierto mediante mecanismos de aseguradoras privadas.`,
+      `• La ciudad de ${topCiudades[0] ? topCiudades[0].name : "de mayor concentración"} lidera el volumen nacional de pacientes de alta especialidad coordinados.`,
+      `• Se sugiere estrechar la relación con los distribuidores clave (${topCanales[0] ? topCanales[0].name : "principales"}) con el fin de robustecer el flujo de entrega.`
+    ];
+
+    conclusions.forEach((line, lineIdx) => {
+      doc.text(line, 12, 194 + lineIdx * 3.8);
+    });
+
+    // 9. Verification & signatures footer block
+    doc.setDrawColor(226, 232, 240);
+    doc.line(12, 217, 198, 217);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Generado por: Auditoría Médica AstraZeneca", 12, 221);
+    doc.text("Sistema de Gestión de Pacientes A4 v2.1 — Confidencial", 132, 221);
+
+    // Save final document
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    doc.save(`Reporte Registro de Pacientes ${day}-${month}-${year}.pdf`);
   };
 
   // Helper for hex colors in jspdf
@@ -686,190 +701,27 @@ export default function PatientsTable({
       </div>
 
       {/* Dynamic Filters panel */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-xs space-y-4" id="filters-container">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs space-y-3" id="filters-container">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-2">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-emerald-600" />
-            <h3 className="font-semibold text-slate-800 text-sm">Filtros y Búsqueda Avanzada (Catálogos)</h3>
+            <h3 className="font-semibold text-slate-800 text-sm">Filtros y Búsqueda Avanzada</h3>
           </div>
           
           <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
-            {isAnyFilterActive && (
-              <button
-                onClick={handleClearFilters}
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all duration-200 cursor-pointer border border-rose-100/50 animate-fade-in"
-                title="Limpiar todos los filtros"
-              >
-                <X className="h-4 w-4" />
-                Limpiar Filtros
-              </button>
-            )}
-            
             <button
               onClick={handleGeneratePDF}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Descargar reporte según filtros actuales"
             >
-              <Download className="h-4.5 w-4.5 text-slate-600" />
-              Descargar Reporte PDF (A4)
+              <Download className="h-4 w-4 text-slate-600" />
+              Descargar Reporte PDF
             </button>
-
-
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" id="filters-grid">
-          {/* Search bar */}
-          <div className="relative col-span-1 sm:col-span-2 md:col-span-2">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por ID, Ciudad, Médico..."
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8"
-            />
-          </div>
-
-          {/* Sector filtro */}
-          <div>
-            <select
-              value={selectedSector}
-              onChange={(e) => setSelectedSector(e.target.value as any)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Sector: Todos</option>
-              <option value="Público">Público</option>
-              <option value="Privado">Privado</option>
-            </select>
-          </div>
-
-          {/* PJS filtro */}
-          <div>
-            <select
-              value={selectedPjs}
-              onChange={(e) => setSelectedPjs(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">PJS: Todos</option>
-              {activePjs.map(p => (
-                <option key={p.id} value={p.id}>{p.nombre} {p.apellido || ""}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Ciudad filtro */}
-          <div>
-            <select
-              value={selectedCiudad}
-              onChange={(e) => setSelectedCiudad(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Ciudad: Todas</option>
-              {activeCiudades.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Médico filtro */}
-          <div>
-            <select
-              value={selectedMedico}
-              onChange={(e) => setSelectedMedico(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Médico: Todos</option>
-              {activeMedicos.map(m => (
-                <option key={m.id} value={m.id}>{m.nombre} {m.apellido || ""}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Aseguradora filtro */}
-          <div>
-            <select
-              value={selectedAseguradora}
-              onChange={(e) => setSelectedAseguradora(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Aseguradora: Todas</option>
-              {activeAseguradoras.map(a => (
-                <option key={a.id} value={a.id}>{a.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Institución filtro */}
-          <div>
-            <select
-              value={selectedInstitucion}
-              onChange={(e) => setSelectedInstitucion(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Institución: Todas</option>
-              {activeInstituciones.map(i => (
-                <option key={i.id} value={i.id}>{i.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Dispensación filtro */}
-          <div>
-            <select
-              value={selectedDispensacion}
-              onChange={(e) => setSelectedDispensacion(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Dispensación: Todas</option>
-              {activeDispensaciones.map(d => (
-                <option key={d.id} value={d.id}>{d.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Distribuidor filtro */}
-          <div>
-            <select
-              value={selectedDistribuidor}
-              onChange={(e) => setSelectedDistribuidor(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Distribuidor: Todos</option>
-              {activeDistribuidores.map(d => (
-                <option key={d.id} value={d.id}>{d.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Indicación filtro */}
-          <div>
-            <select
-              value={selectedIndicacion}
-              onChange={(e) => setSelectedIndicacion(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Indicación: Todas</option>
-              {activeIndicaciones.map(i => (
-                <option key={i.id} value={i.id}>{i.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Dosis filtro */}
-          <div>
-            <select
-              value={selectedDosis}
-              onChange={(e) => setSelectedDosis(e.target.value)}
-              className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 h-8 cursor-pointer"
-            >
-              <option value="Todos">Dosis: Todas</option>
-              {activeDosis.map(d => (
-                <option key={d.id} value={d.id}>{d.nombre}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {/* Reusable compact filters shared with the dashboard */}
+        <CompactFilters filters={filters} onChange={onFilterChange} lookups={lookups} />
 
         {/* Filters Summary */}
         <div className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-50 p-2 rounded-lg border border-slate-100">

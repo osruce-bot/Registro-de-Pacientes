@@ -110,15 +110,8 @@ export async function initializeFirestoreDefaults(): Promise<{
         });
       }
 
-      // Merge with local fallback to preserve any unsynced lookup items
-      const local = getLocalFallback<LookupItem[]>(`lookup_${type}`, []);
-      const mergedLookupMap = new Map<string, LookupItem>();
-      local.forEach(item => mergedLookupMap.set(item.id, item));
-      items.forEach(item => mergedLookupMap.set(item.id, item));
-      const combinedItems = Array.from(mergedLookupMap.values());
-      
-      setLocalFallback(`lookup_${type}`, combinedItems);
-      items = combinedItems;
+      // Save fetched Firestore items directly to local fallback to keep them in sync
+      setLocalFallback(`lookup_${type}`, items);
     } catch (err) {
       console.warn(`Firestore read failed for ${type}, utilizing localStorage fallback.`, err);
       // Fallback to local
@@ -191,15 +184,8 @@ export async function initializeFirestoreDefaults(): Promise<{
       });
     });
 
-    // Save fetched/merged to local for hybrid offline resilience
-    const localPatients = getLocalFallback<Paciente[]>("pacientes", []);
-    const mergedMap = new Map<string, Paciente>();
-    localPatients.forEach(p => mergedMap.set(p.id, p));
-    pacientesData.forEach(p => mergedMap.set(p.id, p));
-    
-    const finalList = Array.from(mergedMap.values());
-    setLocalFallback("pacientes", finalList);
-    pacientesData = finalList;
+    // Save fetched Firestore patients directly to local fallback to keep them in sync
+    setLocalFallback("pacientes", pacientesData);
   } catch (err) {
     console.warn("Firestore patient retrieval failed, fetching cached local registers.", err);
     pacientesData = getLocalFallback<Paciente[]>("pacientes", []);

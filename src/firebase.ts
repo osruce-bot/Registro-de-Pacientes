@@ -1,13 +1,43 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  doc, 
+  getDocFromServer
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: The app will break without referencing the customized firestoreDatabaseId
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore with robust local disk caching (IndexedDB) for offline/poor connectivity resilience
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}, firebaseConfig.firestoreDatabaseId);
+
 export const auth = getAuth();
+
+/**
+ * Validates connection to the Firestore backend.
+ * Warns cleanly if backend is currently unreachable.
+ */
+export async function testFirestoreConnection(): Promise<boolean> {
+  try {
+    // Attempt a lightweight server-only read to check real-time online status
+    await getDocFromServer(doc(db, '_connection_test_', 'ping'));
+    return true;
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes('offline') || error.message.includes('unavailable') || error.message.includes('Could not reach'))) {
+      console.warn("Firestore service is currently operating in offline/cached fallback mode.", error.message);
+    } else {
+      console.warn("Firestore connection check noted alternative response status:", error);
+    }
+    return false;
+  }
+}
 
 export enum OperationType {
   CREATE = 'create',

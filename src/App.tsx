@@ -10,10 +10,10 @@ import {
   dbClearSingleLookupOnCloud,
   dbDeleteLookupItem
 } from "./dbService";
-import { Paciente, LookupItem, LookupType, LOOKUPS_CONFIG } from "./types";
+import { Paciente, LookupItem, LookupType, LOOKUPS_CONFIG, FilterState, INITIAL_FILTERS } from "./types";
 import { encryptText } from "./encryptUtils";
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, testFirestoreConnection } from "./firebase";
 import Dashboard from "./components/Dashboard";
 import NuevoRegistro from "./components/NuevoRegistro";
 import LookupManager from "./components/LookupManager";
@@ -68,6 +68,7 @@ export default function App() {
 
   // Core Clinical State
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [lookups, setLookups] = useState<Record<LookupType, LookupItem[]>>({} as any);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -106,6 +107,8 @@ export default function App() {
   // Load database structures on startup
   const fetchAllData = async () => {
     setSyncing(true);
+    // Explicitly test connection health on initial boot as required by Firebase specification
+    await testFirestoreConnection();
     try {
       const res = await initializeFirestoreDefaults();
       
@@ -375,7 +378,6 @@ export default function App() {
         { id: "dashboard", label: "Dashboard Diagnóstico", icon: Activity },
         { id: "pacientes_grid", label: "Tabla de Pacientes", icon: Layers },
         { id: "ingreso", label: "Ingreso Nuevo Registro", icon: UserPlus },
-        { id: "importor", label: "Importar de Excel / Sheets", icon: Database, highlight: true },
       ]
     },
     {
@@ -599,7 +601,7 @@ export default function App() {
                     className={`
                       w-full flex items-center justify-between gap-3 px-3 py-2 text-xs font-semibold rounded-md transition-all cursor-pointer text-left font-sans
                       ${isSelected 
-                        ? item.highlight 
+                        ? (item as any).highlight 
                           ? "bg-emerald-600 text-white shadow-sm font-semibold" 
                           : "bg-blue-600 text-white shadow-sm font-semibold" 
                         : "text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -753,13 +755,20 @@ export default function App() {
             <div className="w-full space-y-6">
               
               {activeTab === "dashboard" && (
-                <Dashboard pacientes={pacientes} lookups={lookups} />
+                <Dashboard 
+                  pacientes={pacientes} 
+                  lookups={lookups} 
+                  filters={filters}
+                  onFilterChange={setFilters}
+                />
               )}
 
               {activeTab === "pacientes_grid" && (
                 <PatientsTable
                   pacientes={pacientes}
                   lookups={lookups}
+                  filters={filters}
+                  onFilterChange={setFilters}
                   onUpdatePaciente={handleUpdatePaciente}
                   onDeletePaciente={handleDeletePaciente}
                   onClearAllPacientes={handleClearAllPacientes}

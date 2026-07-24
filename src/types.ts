@@ -123,6 +123,72 @@ export const LOOKUPS_CONFIG: Record<LookupType, LookupConfig> = {
   },
 };
 
+export interface FilterState {
+  searchTerm: string;
+  selectedSector: "Todos" | "Público" | "Privado";
+  selectedPjs: string;
+  selectedCiudad: string;
+  selectedMedico: string;
+  selectedAseguradora: string;
+  selectedInstitucion: string;
+  selectedDispensacion: string;
+  selectedDistribuidor: string;
+  selectedIndicacion: string;
+  selectedDosis: string;
+}
+
+export const INITIAL_FILTERS: FilterState = {
+  searchTerm: "",
+  selectedSector: "Todos",
+  selectedPjs: "Todos",
+  selectedCiudad: "Todos",
+  selectedMedico: "Todos",
+  selectedAseguradora: "Todos",
+  selectedInstitucion: "Todos",
+  selectedDispensacion: "Todos",
+  selectedDistribuidor: "Todos",
+  selectedIndicacion: "Todos",
+  selectedDosis: "Todos",
+};
+
+export function getFilteredPacientes(pacientes: Paciente[], filters: FilterState): Paciente[] {
+  return pacientes.filter((p) => {
+    const query = filters.searchTerm.toLowerCase().trim();
+    const matchSearch = 
+      query === "" ||
+      p.id.toLowerCase().includes(query) ||
+      p.nombre.toLowerCase().includes(query) ||
+      p.apellido.toLowerCase().includes(query) ||
+      (p.ciudadLabel && p.ciudadLabel.toLowerCase().includes(query)) ||
+      (p.medicoLabel && p.medicoLabel.toLowerCase().includes(query));
+
+    const matchSector = filters.selectedSector === "Todos" || p.sector === filters.selectedSector;
+    const matchPjs = filters.selectedPjs === "Todos" || p.pjsId === filters.selectedPjs;
+    const matchCiudad = filters.selectedCiudad === "Todos" || p.ciudadId === filters.selectedCiudad;
+    const matchMedico = filters.selectedMedico === "Todos" || p.medicoId === filters.selectedMedico;
+    const matchAseguradora = filters.selectedAseguradora === "Todos" || p.aseguradoraId === filters.selectedAseguradora;
+    const matchInstitucion = filters.selectedInstitucion === "Todos" || p.institucionId === filters.selectedInstitucion;
+    const matchDispensacion = filters.selectedDispensacion === "Todos" || p.dispensacionId === filters.selectedDispensacion;
+    const matchDistribuidor = filters.selectedDistribuidor === "Todos" || p.distribuidorId === filters.selectedDistribuidor;
+    const matchIndicacion = filters.selectedIndicacion === "Todos" || p.indicacionId === filters.selectedIndicacion;
+    const matchDosis = filters.selectedDosis === "Todos" || p.dosisId === filters.selectedDosis;
+
+    return (
+      matchSearch &&
+      matchSector &&
+      matchPjs &&
+      matchCiudad &&
+      matchMedico &&
+      matchAseguradora &&
+      matchInstitucion &&
+      matchDispensacion &&
+      matchDistribuidor &&
+      matchIndicacion &&
+      matchDosis
+    );
+  });
+}
+
 export function capitalizeProperName(str: string): string {
   if (!str) return "";
   return str
