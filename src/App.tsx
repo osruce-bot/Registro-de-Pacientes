@@ -87,11 +87,19 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Custom Username/Password Authorization (mbraschi / registered users)
+  // Uses sessionStorage so access is automatically revoked when the browser tab/window is closed
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
-    return localStorage.getItem("med_auth_authorized") === "true";
+    // Purge old persistent localStorage auth keys to guarantee strict tab-session security
+    try {
+      localStorage.removeItem("med_auth_authorized");
+      localStorage.removeItem("med_auth_username");
+    } catch (e) {
+      // ignore storage restriction errors
+    }
+    return sessionStorage.getItem("med_auth_authorized") === "true";
   });
   const [loggedInUsername, setLoggedInUsername] = useState<string>(() => {
-    return localStorage.getItem("med_auth_username") || (localStorage.getItem("med_auth_authorized") === "true" ? "mbraschi" : "");
+    return sessionStorage.getItem("med_auth_username") || (sessionStorage.getItem("med_auth_authorized") === "true" ? "mbraschi" : "");
   });
   const [loggedInUserObj, setLoggedInUserObj] = useState<AppUser | null>(null);
 
@@ -108,8 +116,11 @@ export default function App() {
 
     // 1. Check Master Admin Credentials
     if (cleanUser === "mbraschi" && loginPassword === "Zafiro641") {
-      localStorage.setItem("med_auth_authorized", "true");
-      localStorage.setItem("med_auth_username", "mbraschi");
+      sessionStorage.setItem("med_auth_authorized", "true");
+      sessionStorage.setItem("med_auth_username", "mbraschi");
+      localStorage.removeItem("med_auth_authorized");
+      localStorage.removeItem("med_auth_username");
+
       setLoggedInUsername("mbraschi");
       setIsAuthorized(true);
       setLoginError("");
@@ -124,8 +135,11 @@ export default function App() {
         return;
       }
       if (matchedUser.password === loginPassword) {
-        localStorage.setItem("med_auth_authorized", "true");
-        localStorage.setItem("med_auth_username", matchedUser.username);
+        sessionStorage.setItem("med_auth_authorized", "true");
+        sessionStorage.setItem("med_auth_username", matchedUser.username);
+        localStorage.removeItem("med_auth_authorized");
+        localStorage.removeItem("med_auth_username");
+
         setLoggedInUsername(matchedUser.username);
         setLoggedInUserObj(matchedUser);
         setIsAuthorized(true);
@@ -337,6 +351,8 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    sessionStorage.removeItem("med_auth_authorized");
+    sessionStorage.removeItem("med_auth_username");
     localStorage.removeItem("med_auth_authorized");
     localStorage.removeItem("med_auth_username");
     setIsAuthorized(false);
@@ -653,7 +669,14 @@ export default function App() {
             </button>
           </form>
 
-          <p className="text-[9px] text-center text-slate-500 leading-normal mt-6 w-full border-t border-slate-900/40 pt-4 font-sans">
+          <div className="mt-4 w-full bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex items-start gap-2 text-left">
+            <Lock className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+            <p className="text-[10px] text-slate-400 leading-snug font-sans">
+              <strong className="text-emerald-400 font-semibold">Sesión Efímera de Seguridad:</strong> Si cierra esta página o pestaña web, el acceso se revoca automáticamente y deberá ingresar sus credenciales nuevamente.
+            </p>
+          </div>
+
+          <p className="text-[9px] text-center text-slate-500 leading-normal mt-5 w-full border-t border-slate-900/40 pt-4 font-sans">
             Acceso restringido a personal médico autorizado. Toda actividad es supervisada por las directivas de AstraZeneca.
           </p>
 

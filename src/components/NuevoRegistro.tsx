@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Paciente, LookupItem, LookupType } from "../types";
 import { encryptText } from "../encryptUtils";
 import { ShieldAlert, PlusCircle, CheckCircle2, Lock, Eye, EyeOff } from "lucide-react";
@@ -9,6 +9,31 @@ interface NuevoRegistroProps {
   lookups: Record<LookupType, LookupItem[]>;
   onAddPaciente: (paciente: Paciente) => Promise<boolean>;
   encryptionKey: string;
+}
+
+type NuevoRegistroField =
+  | "fechaIngreso"
+  | "pjsId"
+  | "ciudadId"
+  | "medicoId"
+  | "aseguradoraId"
+  | "sector"
+  | "institucionId"
+  | "dispensacionId"
+  | "distribuidorId"
+  | "indicacionId"
+  | "dosisId"
+  | "lineaTratamiento";
+
+function isValidDateString(dateStr: string): boolean {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [yStr, mStr, dStr] = dateStr.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const d = Number(dStr);
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 }
 
 export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }: NuevoRegistroProps) {
@@ -30,6 +55,17 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showKeyInfo, setShowKeyInfo] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<NuevoRegistroField, boolean>>>({});
+  const fechaIngresoRef = useRef<HTMLInputElement>(null);
+
+  const clearFieldError = (field: NuevoRegistroField) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   // Helper to get labels from active lookups
   const getSelectedLabel = (type: LookupType, id: string): string => {
@@ -58,6 +94,56 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
+
+    const errors: Partial<Record<NuevoRegistroField, boolean>> = {};
+
+    if (fechaIngresoRef.current?.validity?.badInput || !isValidDateString(fechaIngreso)) {
+      errors.fechaIngreso = true;
+    }
+    if (!pjsId || !getActiveOptions("pjs").some(o => o.id === pjsId)) {
+      errors.pjsId = true;
+    }
+    if (!ciudadId || !getActiveOptions("ciudades").some(o => o.id === ciudadId)) {
+      errors.ciudadId = true;
+    }
+    if (!medicoId || !getActiveOptions("medicos").some(o => o.id === medicoId)) {
+      errors.medicoId = true;
+    }
+    if (!aseguradoraId || !getActiveOptions("aseguradoras").some(o => o.id === aseguradoraId)) {
+      errors.aseguradoraId = true;
+    }
+    if (sector !== "Público" && sector !== "Privado") {
+      errors.sector = true;
+    }
+    if (!institucionId || !getActiveOptions("instituciones").some(o => o.id === institucionId)) {
+      errors.institucionId = true;
+    }
+    if (!dispensacionId || !getActiveOptions("dispensaciones").some(o => o.id === dispensacionId)) {
+      errors.dispensacionId = true;
+    }
+    if (!distribuidorId || !getActiveOptions("distribuidores").some(o => o.id === distribuidorId)) {
+      errors.distribuidorId = true;
+    }
+    if (!indicacionId || !getActiveOptions("indicaciones").some(o => o.id === indicacionId)) {
+      errors.indicacionId = true;
+    }
+    if (!dosisId || !getActiveOptions("dosis").some(o => o.id === dosisId)) {
+      errors.dosisId = true;
+    }
+    if (!lineaTratamiento || !lineaTratamiento.trim()) {
+      errors.lineaTratamiento = true;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setMsg({
+        type: "error",
+        text: "Deben completarse todos los campos obligatorios correctamente antes de guardar el registro."
+      });
+      return;
+    }
+
+    setFieldErrors({});
 
     // Generate a secure, unique anonymous registration ID
     const cleanId = "REG-" + Math.floor(10000000 + Math.random() * 90000000);
@@ -113,6 +199,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
           type: "success",
           text: `Registro [${nuevoPaciente.id}] ingresado correctamente en la base de datos.`
         });
+        setFieldErrors({});
         // Clear main fields
         setPjsId("");
         setCiudadId("");
@@ -181,7 +268,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
         <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 text-sm animate-fade-in ${
           msg.type === "success" 
             ? "bg-emerald-50 border-emerald-100 text-emerald-800" 
-            : "bg-rose-50 border-rose-100 text-rose-800"
+            : "bg-rose-50 border-rose-200 text-rose-800"
         }`}>
           {msg.type === "success" ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -192,7 +279,7 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6" id="admission-form">
+      <form onSubmit={handleSubmit} noValidate className="space-y-6" id="admission-form">
         
         {/* Section 1: Clinical references and Entities configuration */}
         <div>
@@ -201,85 +288,123 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
             
             {/* Fecha de Ingreso */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="field-fecha-ingreso">
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.fechaIngreso ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="field-fecha-ingreso">
                 Fecha de Ingreso *
               </label>
               <input
+                ref={fechaIngresoRef}
                 id="field-fecha-ingreso"
                 type="date"
                 required
                 value={fechaIngreso}
-                onChange={(e) => setFechaIngreso(e.target.value)}
-                className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 cursor-pointer"
+                onChange={(e) => {
+                  setFechaIngreso(e.target.value);
+                  clearFieldError("fechaIngreso");
+                }}
+                aria-invalid={Boolean(fieldErrors.fechaIngreso)}
+                className={`w-full rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 cursor-pointer border ${
+                  fieldErrors.fechaIngreso
+                    ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500/20 focus:border-rose-500"
+                    : "text-slate-800 bg-slate-50 border-slate-200 focus:ring-emerald-500/10 focus:border-emerald-500"
+                }`}
               />
             </div>
 
             {/* PJS Selector */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-pjs">
-                Miembro PJS
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.pjsId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-pjs">
+                Miembro PJS *
               </label>
               <SearchableSelect
                 id="sel-pjs"
                 value={pjsId}
-                onChange={setPjsId}
+                onChange={(val) => {
+                  setPjsId(val);
+                  if (val) clearFieldError("pjsId");
+                }}
                 options={getActiveOptions("pjs")}
                 placeholder="-- Seleccionar miembro --"
+                required
+                hasError={Boolean(fieldErrors.pjsId)}
               />
             </div>
 
             {/* Ciudades de Actividad */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-ciudad">
-                Ciudad del Perú
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.ciudadId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-ciudad">
+                Ciudad del Perú *
               </label>
               <SearchableSelect
                 id="sel-ciudad"
                 value={ciudadId}
-                onChange={setCiudadId}
+                onChange={(val) => {
+                  setCiudadId(val);
+                  if (val) clearFieldError("ciudadId");
+                }}
                 options={getActiveOptions("ciudades")}
                 placeholder="-- Seleccionar ciudad --"
+                required
+                hasError={Boolean(fieldErrors.ciudadId)}
               />
             </div>
 
             {/* Médico Tratante */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-medico">
-                Médico Tratante
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.medicoId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-medico">
+                Médico Tratante *
               </label>
               <SearchableSelect
                 id="sel-medico"
                 value={medicoId}
-                onChange={setMedicoId}
+                onChange={(val) => {
+                  setMedicoId(val);
+                  if (val) clearFieldError("medicoId");
+                }}
                 options={getActiveOptions("medicos")}
                 placeholder="-- Seleccionar médico --"
+                required
+                hasError={Boolean(fieldErrors.medicoId)}
               />
             </div>
 
             {/* Aseguradora */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-aseguradora">
-                Aseguradora
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.aseguradoraId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-aseguradora">
+                Aseguradora *
               </label>
               <SearchableSelect
                 id="sel-aseguradora"
                 value={aseguradoraId}
-                onChange={setAseguradoraId}
+                onChange={(val) => {
+                  setAseguradoraId(val);
+                  if (val) clearFieldError("aseguradoraId");
+                }}
                 options={getActiveOptions("aseguradoras")}
                 placeholder="-- Seleccionar aseguradora --"
+                required
+                hasError={Boolean(fieldErrors.aseguradoraId)}
               />
             </div>
 
             {/* Sector Picker */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-sector">
-                Sector Salud
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.sector ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-sector">
+                Sector Salud *
               </label>
               <select
                 id="sel-sector"
+                required
                 value={sector}
-                onChange={(e) => setSector(e.target.value as any)}
-                className="w-full text-slate-800 bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 font-medium"
+                onChange={(e) => {
+                  setSector(e.target.value as any);
+                  clearFieldError("sector");
+                }}
+                aria-invalid={Boolean(fieldErrors.sector)}
+                className={`w-full rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 font-medium border ${
+                  fieldErrors.sector
+                    ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500/20 focus:border-rose-500"
+                    : "text-slate-800 bg-slate-50 border-slate-200 focus:ring-emerald-500/10 focus:border-emerald-500"
+                }`}
               >
                 <option value="Público">Público (Minsa, EsSalud)</option>
                 <option value="Privado">Privado (Clínicas, Particular)</option>
@@ -288,85 +413,118 @@ export default function NuevoRegistro({ lookups, onAddPaciente, encryptionKey }:
 
             {/* Institucion */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-institucion">
-                Institución Médica
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.institucionId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-institucion">
+                Institución Médica *
               </label>
               <SearchableSelect
                 id="sel-institucion"
                 value={institucionId}
-                onChange={setInstitucionId}
+                onChange={(val) => {
+                  setInstitucionId(val);
+                  if (val) clearFieldError("institucionId");
+                }}
                 options={getActiveOptions("instituciones")}
                 placeholder="-- Seleccionar institución --"
+                required
+                hasError={Boolean(fieldErrors.institucionId)}
               />
             </div>
 
             {/* Dispensacion */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-dispensacion">
-                Dispensación
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.dispensacionId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-dispensacion">
+                Dispensación *
               </label>
               <SearchableSelect
                 id="sel-dispensacion"
                 value={dispensacionId}
-                onChange={setDispensacionId}
+                onChange={(val) => {
+                  setDispensacionId(val);
+                  if (val) clearFieldError("dispensacionId");
+                }}
                 options={getActiveOptions("dispensaciones")}
                 placeholder="-- Seleccionar dispensación --"
+                required
+                hasError={Boolean(fieldErrors.dispensacionId)}
               />
             </div>
 
             {/* Distribuidor */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-distribuidor">
-                Distribuidor
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.distribuidorId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-distribuidor">
+                Distribuidor *
               </label>
               <SearchableSelect
                 id="sel-distribuidor"
                 value={distribuidorId}
-                onChange={setDistribuidorId}
+                onChange={(val) => {
+                  setDistribuidorId(val);
+                  if (val) clearFieldError("distribuidorId");
+                }}
                 options={getActiveOptions("distribuidores")}
                 placeholder="-- Seleccionar distribuidor --"
+                required
+                hasError={Boolean(fieldErrors.distribuidorId)}
               />
             </div>
 
             {/* Indicacion */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-indicacion">
-                Indicación Clínica
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.indicacionId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-indicacion">
+                Indicación Clínica *
               </label>
               <SearchableSelect
                 id="sel-indicacion"
                 value={indicacionId}
-                onChange={setIndicacionId}
+                onChange={(val) => {
+                  setIndicacionId(val);
+                  if (val) clearFieldError("indicacionId");
+                }}
                 options={getActiveOptions("indicaciones")}
                 placeholder="-- Seleccionar indicación --"
+                required
+                hasError={Boolean(fieldErrors.indicacionId)}
               />
             </div>
 
             {/* Dosis */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-dosis">
-                Dosis de Referencia
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.dosisId ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-dosis">
+                Dosis de Referencia *
               </label>
               <SearchableSelect
                 id="sel-dosis"
                 value={dosisId}
-                onChange={setDosisId}
+                onChange={(val) => {
+                  setDosisId(val);
+                  if (val) clearFieldError("dosisId");
+                }}
                 options={getActiveOptions("dosis")}
                 placeholder="-- Seleccionar dosis --"
+                required
+                hasError={Boolean(fieldErrors.dosisId)}
               />
             </div>
 
             {/* Línea de tratamiento */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5" htmlFor="sel-linea-tratamiento">
+              <label className={`block text-xs font-medium mb-1.5 ${fieldErrors.lineaTratamiento ? "text-rose-600 font-semibold" : "text-slate-600"}`} htmlFor="sel-linea-tratamiento">
                 Línea de Tratamiento *
               </label>
               <select
                 id="sel-linea-tratamiento"
                 required
                 value={lineaTratamiento}
-                onChange={(e) => setLineaTratamiento(e.target.value)}
-                className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 font-medium cursor-pointer"
+                onChange={(e) => {
+                  setLineaTratamiento(e.target.value);
+                  clearFieldError("lineaTratamiento");
+                }}
+                aria-invalid={Boolean(fieldErrors.lineaTratamiento)}
+                className={`w-full rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 font-medium cursor-pointer border ${
+                  fieldErrors.lineaTratamiento
+                    ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500/20 focus:border-rose-500"
+                    : "text-slate-800 bg-slate-50 border-slate-200 focus:ring-emerald-500/10 focus:border-emerald-500"
+                }`}
               >
                 <option value="1era Línea">1era Línea (1L)</option>
                 <option value="2da Línea">2da Línea (2L)</option>

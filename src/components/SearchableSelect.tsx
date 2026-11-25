@@ -9,6 +9,7 @@ interface SearchableSelectProps {
   onChange: (id: string) => void;
   placeholder: string;
   required?: boolean;
+  hasError?: boolean;
 }
 
 export default function SearchableSelect({
@@ -18,10 +19,13 @@ export default function SearchableSelect({
   onChange,
   placeholder,
   required = false,
+  hasError = false,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevValueRef = useRef(value);
+  const isTypingRef = useRef(false);
 
   // Get current active displayed label matching selection value
   const getSelectedLabel = () => {
@@ -30,11 +34,22 @@ export default function SearchableSelect({
     return found.apellido ? `${found.nombre} ${found.apellido}` : found.nombre;
   };
 
-  // Keep search term in sync with selected value when dropdown is closed
+  // Keep search term in sync with selected value without wiping incomplete user input
   useEffect(() => {
-    if (!isOpen) {
-      setSearchTerm(getSelectedLabel());
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      prevValueRef.current = value;
+      return;
     }
+
+    if (value) {
+      if (!isOpen || prevValueRef.current !== value) {
+        setSearchTerm(getSelectedLabel());
+      }
+    } else if (prevValueRef.current !== value) {
+      setSearchTerm("");
+    }
+    prevValueRef.current = value;
   }, [value, isOpen, options]);
 
   // Click outside to close standard dropdown
@@ -56,12 +71,14 @@ export default function SearchableSelect({
   });
 
   const handleSelect = (optId: string) => {
+    isTypingRef.current = false;
     onChange(optId);
     setIsOpen(false);
   };
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
+    isTypingRef.current = false;
     onChange("");
     setSearchTerm("");
     setIsOpen(true);
@@ -76,17 +93,27 @@ export default function SearchableSelect({
           required={required && !value}
           value={searchTerm}
           onChange={(e) => {
-            setSearchTerm(e.target.value);
+            const nextText = e.target.value;
+            setSearchTerm(nextText);
+            if (value && nextText !== getSelectedLabel()) {
+              isTypingRef.current = true;
+              onChange("");
+            }
             if (!isOpen) setIsOpen(true);
           }}
           onFocus={() => {
             setIsOpen(true);
           }}
           placeholder={placeholder}
-          className="w-full text-slate-800 bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-10 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all cursor-pointer placeholder-slate-400"
+          aria-invalid={hasError}
+          className={`w-full rounded-lg pl-3 pr-10 py-2 text-sm focus:outline-none focus:ring-2 transition-all cursor-pointer placeholder-slate-400 border ${
+            hasError
+              ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:bg-white focus:border-rose-500 focus:ring-rose-500/20"
+              : "text-slate-800 bg-slate-50 border-slate-200 focus:bg-white focus:ring-emerald-500/10 focus:border-emerald-500"
+          }`}
         />
         <div className="absolute right-0 top-0 h-full flex items-center pr-3 gap-1.5">
-          {value && (
+          {(value || searchTerm) && (
             <button
               type="button"
               onClick={handleClear}
@@ -96,7 +123,7 @@ export default function SearchableSelect({
             </button>
           )}
           <ChevronDown
-            className={`h-4 w-4 text-slate-400 transition-transform cursor-pointer ${isOpen ? "rotate-180" : ""}`}
+            className={`h-4 w-4 transition-transform cursor-pointer ${hasError ? "text-rose-500" : "text-slate-400"} ${isOpen ? "rotate-180" : ""}`}
             onClick={() => setIsOpen(!isOpen)}
           />
         </div>

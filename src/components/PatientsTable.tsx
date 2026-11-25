@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { Paciente, LookupItem, LookupType, FilterState, getFilteredPacientes } from "../types";
+import React, { useState, useMemo, useRef } from "react";
+import { Paciente, LookupItem, LookupType, FilterState, getFilteredPacientes, isPacienteActivo } from "../types";
 import CompactFilters from "./CompactFilters";
 import { decryptText, encryptText } from "../encryptUtils";
 import { 
@@ -16,10 +16,38 @@ import {
   FileSpreadsheet,
   ChevronRight,
   Info,
-  Database
+  Database,
+  ShieldAlert,
+  CheckCircle2
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import SearchableSelect from "./SearchableSelect";
+
+type EditFieldKey =
+  | "pjsId"
+  | "ciudadId"
+  | "medicoId"
+  | "aseguradoraId"
+  | "sector"
+  | "institucionId"
+  | "dispensacionId"
+  | "distribuidorId"
+  | "indicacionId"
+  | "dosisId"
+  | "lineaTratamiento"
+  | "fechaIngreso"
+  | "fechaBaja";
+
+function isValidDateString(dateStr: string): boolean {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [yStr, mStr, dStr] = dateStr.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const d = Number(dStr);
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
 
 export function formatDateToDMY(dateStr?: string): string {
   if (!dateStr) return "";
@@ -249,6 +277,23 @@ export default function PatientsTable({
   const [tempFechaIngreso, setTempFechaIngreso] = useState("");
   const [tempFechaBaja, setTempFechaBaja] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [editFieldErrors, setEditFieldErrors] = useState<Partial<Record<EditFieldKey, boolean>>>({});
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
+  const editFechaIngresoRef = useRef<HTMLInputElement>(null);
+  const editFechaBajaRef = useRef<HTMLInputElement>(null);
+
+  // Patient status filter (defaults to showing only active patients)
+  const [statusFilter, setStatusFilter] = useState<"activos" | "bajas">("activos");
+
+  const clearEditFieldError = (field: EditFieldKey) => {
+    setEditFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   // Detail panel state for expandables
   const [expandedPacienteId, setExpandedPacienteId] = useState<string | null>(null);
@@ -306,14 +351,21 @@ export default function PatientsTable({
   const activeIndicaciones = useMemo(() => sortLookupList((lookups.indicaciones || []).filter(i => i.status === "activo")), [lookups]);
   const activeDosis = useMemo(() => sortLookupList((lookups.dosis || []).filter(d => d.status === "activo")), [lookups]);
 
-  // Apply search & filters
+  // Count patients in the currently selected status
+  const statusTotalCount = useMemo(() => {
+    return pacientes.filter((p) => (statusFilter === "activos" ? isPacienteActivo(p) : !isPacienteActivo(p))).length;
+  }, [pacientes, statusFilter]);
+
+  // Apply search, catalog filters, and status filter
   const filteredPacientes = useMemo(() => {
-    return getFilteredPacientes(pacientes, filters).sort((a, b) => {
-      const timeA = parseDateToTime(a.fechaIngreso, a.createdAt);
-      const timeB = parseDateToTime(b.fechaIngreso, b.createdAt);
-      return timeB - timeA;
-    });
-  }, [pacientes, filters]);
+    return getFilteredPacientes(pacientes, filters)
+      .filter((p) => (statusFilter === "activos" ? isPacienteActivo(p) : !isPacienteActivo(p)))
+      .sort((a, b) => {
+        const timeA = parseDateToTime(a.fechaIngreso, a.createdAt);
+        const timeB = parseDateToTime(b.fechaIngreso, b.createdAt);
+        return timeB - timeA;
+      });
+  }, [pacientes, filters, statusFilter]);
 
   // Check if any filter is active
   const isAnyFilterActive = useMemo(() => {
@@ -334,6 +386,8 @@ export default function PatientsTable({
 
   // Initiate edit flow
   const handleOpenEdit = (p: Paciente) => {
+    setEditFieldErrors({});
+    setEditFormError(null);
     setEditingPaciente(p);
     setTempPjsId(p.pjsId);
     setTempCiudadId(p.ciudadId);
@@ -353,7 +407,76 @@ export default function PatientsTable({
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPaciente) return;
+
+    const errors: Partial<Record<EditFieldKey, boolean>> = {};
+
+    if (!tempPjsId || !(lookups.pjs || []).some(o => o.id === tempPjsId)) {
+      errors.pjsId = true;
+    }
+    if (!tempCiudadId || !(lookups.ciudades || []).some(o => o.id === tempCiudadId)) {
+      errors.ciudadId = true;
+    }
+    if (!tempMedicoId || !(lookups.medicos || []).some(o => o.id === tempMedicoId)) {
+      errors.medicoId = true;
+    }
+    if (!tempAseguradoraId || !(lookups.aseguradoras || []).some(o => o.id === tempAseguradoraId)) {
+      errors.aseguradoraId = true;
+    }
+    if (tempSector !== "Público" && tempSector !== "Privado") {
+      errors.sector = true;
+    }
+    if (!tempInstitucionId || !(lookups.instituciones || []).some(o => o.id === tempInstitucionId)) {
+      errors.institucionId = true;
+    }
+    if (!tempDispensacionId || !(lookups.dispensaciones || []).some(o => o.id === tempDispensacionId)) {
+      errors.dispensacionId = true;
+    }
+    if (!tempDistribuidorId || !(lookups.distribuidores || []).some(o => o.id === tempDistribuidorId)) {
+      errors.distribuidorId = true;
+    }
+    if (!tempIndicacionId || !(lookups.indicaciones || []).some(o => o.id === tempIndicacionId)) {
+      errors.indicacionId = true;
+    }
+    if (!tempDosisId || !(lookups.dosis || []).some(o => o.id === tempDosisId)) {
+      errors.dosisId = true;
+    }
+    if (!tempLineaTratamiento || !tempLineaTratamiento.trim()) {
+      errors.lineaTratamiento = true;
+    }
+    if (editFechaIngresoRef.current?.validity?.badInput || !isValidDateString(tempFechaIngreso)) {
+      errors.fechaIngreso = true;
+    }
+    if (editFechaBajaRef.current?.validity?.badInput) {
+      errors.fechaBaja = true;
+    } else if (tempFechaBaja.trim() !== "") {
+      if (!isValidDateString(tempFechaBaja)) {
+        errors.fechaBaja = true;
+      } else if (isValidDateString(tempFechaIngreso) && tempFechaBaja < tempFechaIngreso) {
+        errors.fechaBaja = true;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditFieldErrors(errors);
+      const onlyFechaBajaError = Object.keys(errors).length === 1 && errors.fechaBaja;
+      setEditFormError(
+        onlyFechaBajaError
+          ? "La fecha de baja ingresada no es válida o es anterior a la fecha de ingreso."
+          : "Deben completarse todos los campos obligatorios correctamente antes de actualizar el registro."
+      );
+      return;
+    }
+
+    setEditFieldErrors({});
+    setEditFormError(null);
     setIsUpdating(true);
+
+    const hasBajaDate = tempFechaBaja.trim() !== "";
+    const nextStatus: "active" | "inactive" = hasBajaDate
+      ? "inactive"
+      : editingPaciente.fechaBaja && editingPaciente.fechaBaja.trim() !== ""
+        ? "active"
+        : editingPaciente.status || "active";
 
     const pack: Paciente = {
       ...editingPaciente,
@@ -378,15 +501,21 @@ export default function PatientsTable({
       dosisLabel: getSelectedLabel("dosis", tempDosisId),
       lineaTratamiento: tempLineaTratamiento,
       fechaIngreso: formatDateToDMY(tempFechaIngreso),
-      fechaBaja: tempFechaBaja ? formatDateToDMY(tempFechaBaja) : "",
+      fechaBaja: hasBajaDate ? formatDateToDMY(tempFechaBaja) : "",
+      status: nextStatus,
       updatedAt: new Date().toISOString()
     };
 
     try {
-      await onUpdatePaciente(pack);
+      const updatedOk = await onUpdatePaciente(pack);
+      if (updatedOk === false) {
+        setEditFormError("No se pudo actualizar el registro en la base de datos. Intente nuevamente.");
+        return;
+      }
       setEditingPaciente(null);
+      setEditSuccessMessage(`Registro [${pack.id}] actualizado correctamente.`);
     } catch (e) {
-      alert("Error al actualizar paciente.");
+      setEditFormError("Error al actualizar paciente.");
     } finally {
       setIsUpdating(false);
     }
@@ -724,6 +853,23 @@ export default function PatientsTable({
         </div>
       </div>
 
+      {editSuccessMessage && (
+        <div className="p-3.5 rounded-xl border bg-emerald-50 border-emerald-100 text-emerald-800 flex items-center justify-between gap-3 text-xs font-medium animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>{editSuccessMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditSuccessMessage(null)}
+            className="text-emerald-600 hover:text-emerald-800 p-1 rounded cursor-pointer"
+            aria-label="Cerrar mensaje"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Filters panel */}
       <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs space-y-3" id="filters-container">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-2">
@@ -732,7 +878,40 @@ export default function PatientsTable({
             <h3 className="font-semibold text-slate-800 text-sm">Filtros y Búsqueda Avanzada</h3>
           </div>
           
-          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end flex-wrap">
+            {/* Filtro de estado: Activos / Dados de baja */}
+            <div
+              role="group"
+              aria-label="Filtro de estado de pacientes"
+              className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80"
+              id="patient-status-filter"
+            >
+              <button
+                type="button"
+                onClick={() => setStatusFilter("activos")}
+                aria-pressed={statusFilter === "activos"}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  statusFilter === "activos"
+                    ? "bg-white text-emerald-700 shadow-xs"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Activos
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("bajas")}
+                aria-pressed={statusFilter === "bajas"}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  statusFilter === "bajas"
+                    ? "bg-white text-rose-700 shadow-xs"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Dados de baja
+              </button>
+            </div>
+
             <button
               onClick={handleGeneratePDF}
               className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -751,9 +930,9 @@ export default function PatientsTable({
         <div className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-50 p-2 rounded-lg border border-slate-100">
           <div className="flex items-center gap-1.5">
             <Info className="h-3.5 w-3.5 text-slate-400" />
-            <span>Filtrado clínico activo</span>
+            <span>Filtrado clínico activo ({statusFilter === "activos" ? "Activos" : "Dados de baja"})</span>
           </div>
-          <span>Mostrando <strong>{filteredPacientes.length}</strong> de <strong>{pacientes.length}</strong> registros totales</span>
+          <span>Mostrando <strong>{filteredPacientes.length}</strong> de <strong>{statusTotalCount}</strong> registros ({statusFilter === "activos" ? "Activos" : "Dados de baja"})</span>
         </div>
       </div>
 
@@ -1081,64 +1260,100 @@ export default function PatientsTable({
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="p-6 space-y-5" id="patient-editing-form">
+            <form onSubmit={handleSaveEdit} noValidate className="p-6 space-y-5" id="patient-editing-form">
+              {editFormError && (
+                <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 flex items-start gap-2.5 text-xs font-medium animate-fade-in">
+                  <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{editFormError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
 
                 {/* PJS */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Miembro PJS</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.pjsId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Miembro PJS *</label>
                   <SearchableSelect
                     id="edit-pjs"
                     value={tempPjsId}
-                    onChange={setTempPjsId}
+                    onChange={(val) => {
+                      setTempPjsId(val);
+                      if (val) clearEditFieldError("pjsId");
+                    }}
                     options={sortLookupList(lookups.pjs || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.pjsId)}
                   />
                 </div>
 
                 {/* Ciudad */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Ciudad del Perú</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.ciudadId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Ciudad del Perú *</label>
                   <SearchableSelect
                     id="edit-ciudad"
                     value={tempCiudadId}
-                    onChange={setTempCiudadId}
+                    onChange={(val) => {
+                      setTempCiudadId(val);
+                      if (val) clearEditFieldError("ciudadId");
+                    }}
                     options={sortLookupList(lookups.ciudades || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.ciudadId)}
                   />
                 </div>
 
                 {/* Medico */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Médico Tratante</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.medicoId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Médico Tratante *</label>
                   <SearchableSelect
                     id="edit-medico"
                     value={tempMedicoId}
-                    onChange={setTempMedicoId}
+                    onChange={(val) => {
+                      setTempMedicoId(val);
+                      if (val) clearEditFieldError("medicoId");
+                    }}
                     options={sortLookupList(lookups.medicos || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.medicoId)}
                   />
                 </div>
 
                 {/* Aseguradora */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Aseguradora</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.aseguradoraId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Aseguradora *</label>
                   <SearchableSelect
                     id="edit-aseguradora"
                     value={tempAseguradoraId}
-                    onChange={setTempAseguradoraId}
+                    onChange={(val) => {
+                      setTempAseguradoraId(val);
+                      if (val) clearEditFieldError("aseguradoraId");
+                    }}
                     options={sortLookupList(lookups.aseguradoras || [])}
                     placeholder="-- Sin asegurar --"
+                    required
+                    hasError={Boolean(editFieldErrors.aseguradoraId)}
                   />
                 </div>
 
                 {/* Sector */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Sector Salud</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.sector ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Sector Salud *</label>
                   <select
+                    required
                     value={tempSector}
-                    onChange={(e) => setTempSector(e.target.value as any)}
-                    className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500"
+                    onChange={(e) => {
+                      setTempSector(e.target.value as any);
+                      clearEditFieldError("sector");
+                    }}
+                    aria-invalid={Boolean(editFieldErrors.sector)}
+                    className={`w-full rounded-lg px-3 py-1.5 text-xs focus:ring-1 border ${
+                      editFieldErrors.sector
+                        ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500"
+                        : "text-slate-800 bg-white border-slate-200 focus:ring-emerald-500"
+                    }`}
                   >
                     <option value="Público">Público</option>
                     <option value="Privado">Privado</option>
@@ -1147,73 +1362,106 @@ export default function PatientsTable({
 
                 {/* Institucion */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Institución</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.institucionId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Institución *</label>
                   <SearchableSelect
                     id="edit-institucion"
                     value={tempInstitucionId}
-                    onChange={setTempInstitucionId}
+                    onChange={(val) => {
+                      setTempInstitucionId(val);
+                      if (val) clearEditFieldError("institucionId");
+                    }}
                     options={sortLookupList(lookups.instituciones || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.institucionId)}
                   />
                 </div>
 
                 {/* Dispensacion */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Dispensación</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.dispensacionId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Dispensación *</label>
                   <SearchableSelect
                     id="edit-dispensacion"
                     value={tempDispensacionId}
-                    onChange={setTempDispensacionId}
+                    onChange={(val) => {
+                      setTempDispensacionId(val);
+                      if (val) clearEditFieldError("dispensacionId");
+                    }}
                     options={sortLookupList(lookups.dispensaciones || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.dispensacionId)}
                   />
                 </div>
 
                 {/* Distribuidor */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Distribuidor</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.distribuidorId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Distribuidor *</label>
                   <SearchableSelect
                     id="edit-distribuidor"
                     value={tempDistribuidorId}
-                    onChange={setTempDistribuidorId}
+                    onChange={(val) => {
+                      setTempDistribuidorId(val);
+                      if (val) clearEditFieldError("distribuidorId");
+                    }}
                     options={sortLookupList(lookups.distribuidores || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.distribuidorId)}
                   />
                 </div>
 
                 {/* Indicacion */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Indicación</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.indicacionId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Indicación *</label>
                   <SearchableSelect
                     id="edit-indicacion"
                     value={tempIndicacionId}
-                    onChange={setTempIndicacionId}
+                    onChange={(val) => {
+                      setTempIndicacionId(val);
+                      if (val) clearEditFieldError("indicacionId");
+                    }}
                     options={sortLookupList(lookups.indicaciones || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.indicacionId)}
                   />
                 </div>
 
                 {/* Dosis */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Dosis</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.dosisId ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Dosis *</label>
                   <SearchableSelect
                     id="edit-dosis"
                     value={tempDosisId}
-                    onChange={setTempDosisId}
+                    onChange={(val) => {
+                      setTempDosisId(val);
+                      if (val) clearEditFieldError("dosisId");
+                    }}
                     options={sortLookupList(lookups.dosis || [])}
                     placeholder="-- Sin asociar --"
+                    required
+                    hasError={Boolean(editFieldErrors.dosisId)}
                   />
                 </div>
 
                 {/* Línea de Tratamiento */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Línea de Tratamiento *</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.lineaTratamiento ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Línea de Tratamiento *</label>
                   <select
                     id="edit-linea-tratamiento"
                     required
                     value={tempLineaTratamiento}
-                    onChange={(e) => setTempLineaTratamiento(e.target.value)}
-                    className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 cursor-pointer font-medium"
+                    onChange={(e) => {
+                      setTempLineaTratamiento(e.target.value);
+                      clearEditFieldError("lineaTratamiento");
+                    }}
+                    aria-invalid={Boolean(editFieldErrors.lineaTratamiento)}
+                    className={`w-full rounded-lg px-3 py-1.5 text-xs focus:ring-1 cursor-pointer font-medium border ${
+                      editFieldErrors.lineaTratamiento
+                        ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500"
+                        : "text-slate-800 bg-white border-slate-200 focus:ring-emerald-500"
+                    }`}
                   >
                     <option value="1era Línea">1era Línea (1L)</option>
                     <option value="2da Línea">2da Línea (2L)</option>
@@ -1225,24 +1473,42 @@ export default function PatientsTable({
 
                 {/* Fecha de Ingreso */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Fecha de Ingreso *</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.fechaIngreso ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Fecha de Ingreso *</label>
                   <input
+                    ref={editFechaIngresoRef}
                     type="date"
                     required
                     value={tempFechaIngreso}
-                    onChange={(e) => setTempFechaIngreso(e.target.value)}
-                    className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                    onChange={(e) => {
+                      setTempFechaIngreso(e.target.value);
+                      clearEditFieldError("fechaIngreso");
+                    }}
+                    aria-invalid={Boolean(editFieldErrors.fechaIngreso)}
+                    className={`w-full rounded-lg px-3 py-1.5 text-xs focus:ring-1 cursor-pointer border ${
+                      editFieldErrors.fechaIngreso
+                        ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500"
+                        : "text-slate-800 bg-white border-slate-200 focus:ring-emerald-500"
+                    }`}
                   />
                 </div>
 
                 {/* Fecha de Baja */}
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Fecha de Baja (Opcional)</label>
+                  <label className={`block text-[11px] font-medium mb-1 ${editFieldErrors.fechaBaja ? "text-rose-600 font-semibold" : "text-slate-500"}`}>Fecha de Baja (Opcional)</label>
                   <input
+                    ref={editFechaBajaRef}
                     type="date"
                     value={tempFechaBaja}
-                    onChange={(e) => setTempFechaBaja(e.target.value)}
-                    className="w-full text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                    onChange={(e) => {
+                      setTempFechaBaja(e.target.value);
+                      clearEditFieldError("fechaBaja");
+                    }}
+                    aria-invalid={Boolean(editFieldErrors.fechaBaja)}
+                    className={`w-full rounded-lg px-3 py-1.5 text-xs focus:ring-1 cursor-pointer border ${
+                      editFieldErrors.fechaBaja
+                        ? "text-rose-900 bg-rose-50/50 border-rose-500 focus:ring-rose-500"
+                        : "text-slate-800 bg-white border-slate-200 focus:ring-emerald-500"
+                    }`}
                   />
                 </div>
 

@@ -211,3 +211,15 @@ export function capitalizeProperName(str: string): string {
     .join(" ");
 }
 
+export function isPacienteActivo(p: Paciente): boolean {
+  const statusVal = String(p.status || "").toLowerCase();
+  const isInactive = statusVal === "inactive" || statusVal === "inactivo" || statusVal === "baja";
+  const hasFechaBaja = Boolean(
+    p.fechaBaja &&
+    p.fechaBaja.trim() !== "" &&
+    p.fechaBaja.trim().toLowerCase() !== "no tiene"
+  );
+  return !isInactive && !hasFechaBaja;
+}
+
+

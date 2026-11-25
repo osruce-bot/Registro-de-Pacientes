@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { 
   initializeFirestore, 
   persistentLocalCache, 
@@ -15,6 +15,11 @@ const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
 
 export const auth = getAuth();
+
+// Configure Auth Session Persistence: session is destroyed when the browser window or tab is closed
+setPersistence(auth, browserSessionPersistence).catch((err) => {
+  console.warn("Auth browserSessionPersistence configuration info:", err);
+});
 
 /**
  * Validates connection to the Firestore backend.
